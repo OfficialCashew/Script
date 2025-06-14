@@ -1,36 +1,293 @@
+--[[ Cashew's Script • GUI with Emoji Toggles ]]--
+
+-- Services
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local InsertService = game:GetService("InsertService")
+local MarketplaceService = game:GetService("MarketplaceService")
+
+local player = Players.LocalPlayer
+
+-- Game name
+local gameName = "Unknown Game"
+pcall(function()
+	gameName = MarketplaceService:GetProductInfo(game.PlaceId).Name
+end)
+
+-- Main GUI
+local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+gui.Name = "CashewScriptGUI"
+gui.ResetOnSpawn = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+-- Toggle Button
+local toggleBtn = Instance.new("TextButton", gui)
+toggleBtn.Size = UDim2.new(0, 140, 0, 40)
+toggleBtn.Position = UDim2.new(0, 10, 0, 10)
+toggleBtn.Text = "Open Cashew's Script"
+toggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+toggleBtn.TextColor3 = Color3.new(1, 1, 1)
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.TextSize = 14
+toggleBtn.BorderSizePixel = 0
+toggleBtn.AutoButtonColor = true
+toggleBtn.Active = true
+toggleBtn.Draggable = true
+toggleBtn.ClipsDescendants = true
+Instance.new("UICorner", toggleBtn)
+
+-- Main Frame
+local main = Instance.new("Frame", gui)
+main.Size = UDim2.new(0, 500, 0, 320)
+main.Position = UDim2.new(0.5, -250, 0.5, -160)
+main.Visible = false
+main.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+main.BorderSizePixel = 0
+Instance.new("UICorner", main)
+
+-- Drag Bar
+local dragBar = Instance.new("Frame", main)
+dragBar.Size = UDim2.new(1, 0, 0, 30)
+dragBar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+dragBar.Active = true
+Instance.new("UICorner", dragBar).CornerRadius = UDim.new(0, 6)
+
+local title = Instance.new("TextLabel", dragBar)
+title.Size = UDim2.new(1, 0, 1, 0)
+title.BackgroundTransparency = 1
+title.Text = "Cashew's Script • " .. gameName
+title.TextColor3 = Color3.new(1, 1, 1)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 14
+title.TextXAlignment = Enum.TextXAlignment.Center
+
+-- Drag logic
+local dragging = false
+local dragStart, startPos
+
+dragBar.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = true
+		dragStart = input.Position
+		startPos = main.Position
+	end
+end)
+
+dragBar.InputChanged:Connect(function(input)
+	if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+		local delta = input.Position - dragStart
+		main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = false
+	end
+end)
+
+-- Tabs
+local tabNames = {"Main", "Player", "Tools"}
+local tabButtons = {}
+local tabFrames = {}
+
+for i, name in ipairs(tabNames) do
+	local btn = Instance.new("TextButton", main)
+	btn.Size = UDim2.new(0, 100, 0, 40)
+	btn.Position = UDim2.new(0, 0, 0, 30 + (i - 1) * 40)
+	btn.Text = name
+	btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+	btn.TextColor3 = Color3.new(1, 1, 1)
+	btn.Font = Enum.Font.GothamBold
+	btn.TextSize = 14
+	Instance.new("UICorner", btn)
+	tabButtons[name] = btn
+
+	local frame = Instance.new("Frame", main)
+	frame.Position = UDim2.new(0, 100, 0, 30)
+	frame.Size = UDim2.new(0, 400, 0, 290)
+	frame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+	frame.Visible = (i == 1)
+	Instance.new("UICorner", frame)
+	tabFrames[name] = frame
+end
+
+for name, btn in pairs(tabButtons) do
+	btn.MouseButton1Click:Connect(function()
+		for _, f in pairs(tabFrames) do f.Visible = false end
+		tabFrames[name].Visible = true
+	end)
+end
+
+-- Toggle GUI
+toggleBtn.MouseButton1Click:Connect(function()
+	main.Visible = not main.Visible
+	toggleBtn.Text = main.Visible and "Close Cashew's Script" or "Open Cashew's Script"
+end)
+
+-- === Player Tab Enhancements ===
+local function getHumanoid()
+	local char = player.Character or player.CharacterAdded:Wait()
+	return char:WaitForChild("Humanoid"), char
+end
+
+-- Slider Helper
+local function createSlider(parent, labelText, minVal, maxVal, defaultVal, onChange, yPos)
+	local label = Instance.new("TextLabel", parent)
+	label.Position = UDim2.new(0, 10, 0, yPos)
+	label.Size = UDim2.new(0, 150, 0, 25)
+	label.Text = labelText .. ": " .. tostring(defaultVal)
+	label.TextColor3 = Color3.new(1,1,1)
+	label.BackgroundTransparency = 1
+	label.Font = Enum.Font.Gotham
+	label.TextSize = 14
+	label.TextXAlignment = Enum.TextXAlignment.Left
+
+	local sliderBack = Instance.new("Frame", parent)
+	sliderBack.Position = UDim2.new(0, 10, 0, yPos + 30)
+	sliderBack.Size = UDim2.new(0, 180, 0, 6)
+	sliderBack.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+	Instance.new("UICorner", sliderBack)
+
+	local knob = Instance.new("Frame", sliderBack)
+	knob.Size = UDim2.new(0, 14, 0, 14)
+	knob.Position = UDim2.new((defaultVal - minVal) / (maxVal - minVal), -7, 0.5, -7)
+	knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+	knob.ZIndex = 2
+
+	local dragging = false
+	knob.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+		end
+	end)
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
+	end)
+	UserInputService.InputChanged:Connect(function(input)
+		if dragging and input.Position then
+			local relX = math.clamp((input.Position.X - sliderBack.AbsolutePosition.X) / sliderBack.AbsoluteSize.X, 0, 1)
+			local value = math.floor(minVal + (maxVal - minVal) * relX)
+			knob.Position = UDim2.new(relX, -7, 0.5, -7)
+			label.Text = labelText .. ": " .. tostring(value)
+			onChange(value)
+		end
+	end)
+end
+
+local playerTab = tabFrames["Player"]
+
+-- Speed slider
+createSlider(playerTab, "WalkSpeed", 16, 200, 16, function(v)
+	local humanoid = getHumanoid()
+	humanoid.WalkSpeed = v
+end, 10)
+
+-- JumpPower slider
+createSlider(playerTab, "JumpPower", 50, 300, 50, function(v)
+	local humanoid = getHumanoid()
+	humanoid.JumpPower = v
+end, 90)
+
+-- === Toggle Buttons with Emoji ===
+
+-- Infinite Jump toggle
+local infJump = false
+
+local infJumpBtn = Instance.new("TextButton", playerTab)
+infJumpBtn.Position = UDim2.new(0, 10, 0, 170)
+infJumpBtn.Size = UDim2.new(0, 170, 0, 30)
+infJumpBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+infJumpBtn.TextColor3 = Color3.new(1, 1, 1)
+infJumpBtn.Font = Enum.Font.GothamBold
+infJumpBtn.TextSize = 14
+infJumpBtn.Text = "❌ Infinite Jump"
+Instance.new("UICorner", infJumpBtn)
+
+infJumpBtn.MouseButton1Click:Connect(function()
+	infJump = not infJump
+	infJumpBtn.Text = (infJump and "✅ " or "❌ ") .. "Infinite Jump"
+end)
+
+UserInputService.JumpRequest:Connect(function()
+	if infJump then
+		local char = player.Character
+		if char and char:FindFirstChildOfClass("Humanoid") then
+			char:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping)
+		end
+	end
+end)
+
+-- Invisibility toggle
+local invis = false
+
+local invisBtn = Instance.new("TextButton", playerTab)
+invisBtn.Position = UDim2.new(0, 10, 0, 210)
+invisBtn.Size = UDim2.new(0, 170, 0, 30)
+invisBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+invisBtn.TextColor3 = Color3.new(1, 1, 1)
+invisBtn.Font = Enum.Font.GothamBold
+invisBtn.TextSize = 14
+invisBtn.Text = "❌ Invisibility"
+Instance.new("UICorner", invisBtn)
+
+invisBtn.MouseButton1Click:Connect(function()
+	invis = not invis
+	invisBtn.Text = (invis and "✅ " or "❌ ") .. "Invisibility"
+	local _, char = getHumanoid()
+	if invis then
+		for _, part in pairs(char:GetDescendants()) do
+			if part:IsA("BasePart") or part:IsA("Decal") then
+				part.Transparency = 1
+			end
+		end
+	else
+		for _, part in pairs(char:GetDescendants()) do
+			if part:IsA("BasePart") or part:IsA("Decal") then
+				part.Transparency = 0
+			end
+		end
+	end
+end)
+
+-- === Tools Tab ===
+local toolsTab = tabFrames["Tools"]
+
+local inputBox = Instance.new("TextBox", toolsTab)
+inputBox.Size = UDim2.new(0, 180, 0, 30)
+inputBox.Position = UDim2.new(0, 10, 0, 10)
+inputBox.PlaceholderText = "Enter Tool ID"
+inputBox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+inputBox.TextColor3 = Color3.new(1, 1, 1)
+inputBox.Font = Enum.Font.Gotham
+inputBox.TextSize = 14
+Instance.new("UICorner", inputBox)
+
+local toolBtn = Instance.new("TextButton", toolsTab)
+toolBtn.Position = UDim2.new(0, 10, 0, 50)
+toolBtn.Size = UDim2.new(0, 180, 0, 35)
+toolBtn.Text = "Spawn Tool"
+toolBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+toolBtn.TextColor3 = Color3.new(1, 1, 1)
+toolBtn.Font = Enum.Font.Gotham
+toolBtn.TextSize = 14
+Instance.new("UICorner", toolBtn)
 toolBtn.MouseButton1Click:Connect(function()
-    local id = tonumber(inputBox.Text)
-    if id then
-        local success, model = pcall(function()
-            return InsertService:LoadAsset(id)
-        end)
-        if success and model then
-            -- Recursive search for any Tool instance in the loaded model
-            local function findTool(obj)
-                if obj:IsA("Tool") then
-                    return obj
-                end
-                for _, child in pairs(obj:GetChildren()) do
-                    local toolFound = findTool(child)
-                    if toolFound then
-                        return toolFound
-                    end
-                end
-                return nil
-            end
-
-            local tool = findTool(model)
-            if tool then
-                tool.Parent = player.Backpack
-            else
-                warn("No Tool found inside model")
-            end
-
-            model:Destroy()
-        else
-            warn("Failed to load asset with ID:", id)
-        end
-    else
-        warn("Invalid Tool ID")
-    end
+	local id = tonumber(inputBox.Text)
+	if id then
+		local model
+		local success, err = pcall(function()
+			model = InsertService:LoadAsset(id)
+		end)
+		if success and model then
+			local tool = model:FindFirstChildWhichIsA("Tool", true)
+			if tool then
+				tool.Parent = player.Backpack
+			end
+			model:Destroy()
+		end
+	end
 end)
