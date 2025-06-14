@@ -1,487 +1,542 @@
--- SERVICES
+-- Services
 local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
 local InsertService = game:GetService("InsertService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local TeleportService = game:GetService("TeleportService")
+local MarketplaceService = game:GetService("MarketplaceService")
 
 local player = Players.LocalPlayer
-local mouse = player:GetMouse()
 
--- GUI SETUP
-local gui = Instance.new("ScreenGui", player.PlayerGui)
-gui.Name = "CashewGUI"
-gui.ResetOnSpawn = false
-
--- MAIN FRAME
-local main = Instance.new("Frame", gui)
-main.Size = UDim2.new(0, 350, 0, 300)
-main.Position = UDim2.new(0.5, -175, 0.5, -150)
-main.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-main.BorderSizePixel = 0
-main.Active = true
-Instance.new("UICorner", main)
-
--- TITLE BAR (drag handle)
-local title = Instance.new("TextLabel", main)
-title.Size = UDim2.new(1, 0, 0, 30)
-title.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-title.Text = "Cashew's Script"
-title.TextColor3 = Color3.new(1,1,1)
-title.Font = Enum.Font.GothamBold
-title.TextSize = 16
-title.TextXAlignment = Enum.TextXAlignment.Left
-title.PaddingLeft = 10
-Instance.new("UICorner", title)
-
--- Dragging logic (only by title)
-local dragging
-local dragInput
-local dragStart
-local startPos
-
-local function updateInput(input)
-	local delta = input.Position - dragStart
-	main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+-- Helper to save settings in PlayerGui.Settings folder
+local settingsFolder = player:WaitForChild("PlayerGui"):FindFirstChild("CashewSettings")
+if not settingsFolder then
+    settingsFolder = Instance.new("Folder")
+    settingsFolder.Name = "CashewSettings"
+    settingsFolder.Parent = player.PlayerGui
 end
 
-title.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-		dragging = true
-		dragStart = input.Position
-		startPos = main.Position
-		input.Changed:Connect(function()
-			if input.UserInputState == Enum.UserInputState.End then
-				dragging = false
-			end
-		end)
-	end
+local function saveSetting(name, value)
+    local val = settingsFolder:FindFirstChild(name)
+    if not val then
+        val = Instance.new("BoolValue")
+        val.Name = name
+        val.Parent = settingsFolder
+    end
+    val.Value = value
+end
+
+local function loadSetting(name, default)
+    local val = settingsFolder:FindFirstChild(name)
+    if val then
+        return val.Value
+    else
+        return default
+    end
+end
+
+-- ScreenGui
+local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+gui.Name = "CashewGUI"
+gui.ResetOnSpawn = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+-- Toggle Button
+local toggleBtn = Instance.new("TextButton", gui)
+toggleBtn.Size = UDim2.new(0, 100, 0, 30)
+toggleBtn.Position = UDim2.new(0, 10, 0, 10)
+toggleBtn.Text = "Toggle GUI"
+toggleBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+toggleBtn.TextColor3 = Color3.new(1, 1, 1)
+toggleBtn.Font = Enum.Font.Gotham
+toggleBtn.TextSize = 14
+Instance.new("UICorner", toggleBtn)
+
+-- Main Frame
+local mainFrame = Instance.new("Frame", gui)
+mainFrame.Size = UDim2.new(0, 400, 0, 320)
+mainFrame.Position = UDim2.new(0.5, -200, 0.5, -160)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+mainFrame.Visible = false
+mainFrame.Active = true
+mainFrame.Draggable = false
+Instance.new("UICorner", mainFrame)
+
+-- UIStroke for mainFrame border
+local stroke = Instance.new("UIStroke", mainFrame)
+stroke.Color = Color3.fromRGB(0, 170, 255)
+stroke.Thickness = 2
+
+-- Blur Effect Background
+local blur = Instance.new("BlurEffect")
+blur.Parent = game:GetService("Lighting")
+blur.Enabled = false
+
+-- Drag Bar
+local dragBar = Instance.new("Frame", mainFrame)
+dragBar.Size = UDim2.new(1, 0, 0, 30)
+dragBar.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+dragBar.Active = true
+dragBar.Selectable = true
+Instance.new("UICorner", dragBar)
+
+-- Icon in title
+local icon = Instance.new("ImageLabel", dragBar)
+icon.Size = UDim2.new(0, 24, 0, 24)
+icon.Position = UDim2.new(0, 5, 0, 3)
+icon.BackgroundTransparency = 1
+icon.Image = "rbxassetid://7072722261"  -- Example icon, replace with your own if you want
+
+local title = Instance.new("TextLabel", dragBar)
+title.Size = UDim2.new(1, -35, 1, 0)
+title.Position = UDim2.new(0, 35, 0, 0)
+title.BackgroundTransparency = 1
+title.Text = "Cashew's Script - " .. MarketplaceService:GetProductInfo(game.PlaceId).Name
+title.TextColor3 = Color3.new(1, 1, 1)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 14
+title.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Tabs
+local tabList = Instance.new("Frame", mainFrame)
+tabList.Size = UDim2.new(0, 100, 1, -30)
+tabList.Position = UDim2.new(0, 0, 0, 30)
+tabList.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+
+local contentFrame = Instance.new("Frame", mainFrame)
+contentFrame.Size = UDim2.new(1, -100, 1, -30)
+contentFrame.Position = UDim2.new(0, 100, 0, 30)
+contentFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+
+local tabNames = {"Main", "Player", "ESP", "Fly", "Tools", "Troll"}
+local tabFrames = {}
+
+for _, name in ipairs(tabNames) do
+    local btn = Instance.new("TextButton", tabList)
+    btn.Size = UDim2.new(1, 0, 0, 30)
+    btn.Position = UDim2.new(0, 0, 0, 30 * (_ - 1))
+    btn.Text = name
+    btn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.Font = Enum.Font.Gotham
+    btn.TextSize = 14
+    Instance.new("UICorner", btn)
+
+    local frame = Instance.new("Frame", contentFrame)
+    frame.Size = UDim2.new(1, 0, 1, 0)
+    frame.BackgroundTransparency = 1
+    frame.Visible = name == "Main"
+    tabFrames[name] = frame
+
+    btn.MouseButton1Click:Connect(function()
+        for _, f in pairs(tabFrames) do f.Visible = false end
+        frame.Visible = true
+    end)
+end
+
+-- Player Tab Features
+local playerTab = tabFrames["Player"]
+
+-- Speed & Jump sliders with saved state
+local function createSlider(text, min, max, default, onChange, posY)
+    local label = Instance.new("TextLabel", playerTab)
+    label.Position = UDim2.new(0, 10, 0, posY)
+    label.Size = UDim2.new(0, 150, 0, 20)
+    label.Text = text .. ": " .. tostring(default)
+    label.TextColor3 = Color3.new(1, 1, 1)
+    label.BackgroundTransparency = 1
+    label.Font = Enum.Font.Gotham
+    label.TextSize = 14
+
+    local slider = Instance.new("TextButton", playerTab)
+    slider.Position = UDim2.new(0, 160, 0, posY)
+    slider.Size = UDim2.new(0, 180, 0, 20)
+    slider.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    slider.Text = ""
+    slider.AutoButtonColor = false
+    local fill = Instance.new("Frame", slider)
+    fill.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+    fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
+
+    local dot = Instance.new("Frame", slider)
+    dot.AnchorPoint = Vector2.new(0.5, 0.5)
+    dot.Position = UDim2.new(fill.Size.X.Scale, 0, 0.5, 0)
+    dot.Size = UDim2.new(0, 10, 0, 10)
+    dot.BackgroundColor3 = Color3.new(1, 1, 1)
+    dot.ZIndex = 2
+    Instance.new("UICorner", dot)
+
+    local dragging = false
+    local function update(input)
+        local rel = input.Position.X - slider.AbsolutePosition.X
+        local pct = math.clamp(rel / slider.AbsoluteSize.X, 0, 1)
+        local value = math.floor(min + (max - min) * pct)
+        fill.Size = UDim2.new(pct, 0, 1, 0)
+        dot.Position = UDim2.new(pct, 0, 0.5, 0)
+        label.Text = text .. ": " .. tostring(value)
+        onChange(value)
+    end
+
+    slider.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+        end
+    end)
+    slider.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            update(input)
+        end
+    end)
+end
+
+local walkSpeedValue = 16
+local jumpPowerValue = 50
+
+-- Load saved values or use defaults
+local savedWalkSpeed = loadSetting("WalkSpeed") and tonumber(loadSetting("WalkSpeed")) or walkSpeedValue
+local savedJumpPower = loadSetting("JumpPower") and tonumber(loadSetting("JumpPower")) or jumpPowerValue
+
+createSlider("WalkSpeed", 16, 100, savedWalkSpeed, function(v)
+    walkSpeedValue = v
+    saveSetting("WalkSpeed", v)
+    if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+        player.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = v
+    end
+end, 10)
+
+createSlider("JumpPower", 50, 200, savedJumpPower, function(v)
+    jumpPowerValue = v
+    saveSetting("JumpPower", v)
+    if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+        player.Character:FindFirstChildOfClass("Humanoid").JumpPower = v
+    end
+end, 40)
+
+-- Toggles including new ESP and Fly
+local toggles = {
+    {name = "Infinite Jump", setting = "InfiniteJump", func = function(state)
+        _G.InfJump = state
+    end},
+    {name = "Invisibility", setting = "Invisibility", func = function(state)
+        if player.Character then
+            for _, v in pairs(player.Character:GetDescendants()) do
+                if v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" then
+                    v.Transparency = state and 1 or 0
+                end
+            end
+        end
+    end},
+    {name = "ESP", setting = "ESP", func = function(state)
+        if state then
+            -- Add ESP boxes or highlights to players
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                    local highlight = p.Character:FindFirstChild("CashewESP")
+                    if not highlight then
+                        highlight = Instance.new("BoxHandleAdornment")
+                        highlight.Name = "CashewESP"
+                        highlight.Adornee = p.Character.HumanoidRootPart
+                        highlight.AlwaysOnTop = true
+                        highlight.ZIndex = 10
+                        highlight.Size = Vector3.new(2, 5, 1)
+                        highlight.Color3 = Color3.fromRGB(0, 170, 255)
+                        highlight.Transparency = 0.5
+                        highlight.Parent = p.Character.HumanoidRootPart
+                    end
+                end
+            end
+        else
+            -- Remove ESP boxes
+            for _, p in pairs(Players:GetPlayers()) do
+                if p.Character then
+                    local highlight = p.Character:FindFirstChild("CashewESP")
+                    if highlight then
+                        highlight:Destroy()
+                    end
+                end
+            end
+        end
+    end},
+    {name = "Fly", setting = "Fly", func = function(state)
+        if state then
+            if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return end
+            local hrp = player.Character.HumanoidRootPart
+            local bodyVelocity = Instance.new("BodyVelocity")
+            bodyVelocity.Name = "CashewFlyVelocity"
+            bodyVelocity.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+            bodyVelocity.Velocity = Vector3.new(0,0,0)
+            bodyVelocity.Parent = hrp
+
+            local bodyGyro = Instance.new("BodyGyro")
+            bodyGyro.Name = "CashewFlyGyro"
+            bodyGyro.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
+            bodyGyro.CFrame = hrp.CFrame
+            bodyGyro.Parent = hrp
+
+            local speed = 50
+            local flyUp, flyDown, flyForward, flyBackward, flyLeft, flyRight = false, false, false, false, false, false
+
+            local function updateVelocity()
+                local vel = Vector3.new(0, 0, 0)
+                if flyForward then vel = vel + workspace.CurrentCamera.CFrame.LookVector end
+                if flyBackward then vel = vel - workspace.CurrentCamera.CFrame.LookVector end
+                if flyLeft then vel = vel - workspace.CurrentCamera.CFrame.RightVector end
+                if flyRight then vel = vel + workspace.CurrentCamera.CFrame.RightVector end
+                if flyUp then vel = vel + Vector3.new(0,1,0) end
+                if flyDown then vel = vel - Vector3.new(0,1,0) end
+                bodyVelocity.Velocity = vel.Unit * speed
+                bodyGyro.CFrame = workspace.CurrentCamera.CFrame
+            end
+
+            local function onInputBegan(input)
+                if input.UserInputType == Enum.UserInputType.Keyboard then
+                    if input.KeyCode == Enum.KeyCode.Space then flyUp = true end
+                    if input.KeyCode == Enum.KeyCode.LeftControl then flyDown = true end
+                    if input.KeyCode == Enum.KeyCode.W then flyForward = true end
+                    if input.KeyCode == Enum.KeyCode.S then flyBackward = true end
+                    if input.KeyCode == Enum.KeyCode.A then flyLeft = true end
+                    if input.KeyCode == Enum.KeyCode.D then flyRight = true end
+                    updateVelocity()
+                end
+            end
+
+            local function onInputEnded(input)
+                if input.UserInputType == Enum.UserInputType.Keyboard then
+                    if input.KeyCode == Enum.KeyCode.Space then flyUp = false end
+                    if input.KeyCode == Enum.KeyCode.LeftControl then flyDown = false end
+                    if input.KeyCode == Enum.KeyCode.W then flyForward = false end
+                    if input.KeyCode == Enum.KeyCode.S then flyBackward = false end
+                    if input.KeyCode == Enum.KeyCode.A then flyLeft = false end
+                    if input.KeyCode == Enum.KeyCode.D then flyRight = false end
+                    updateVelocity()
+                end
+            end
+
+            local inputBeganConn
+            local inputEndedConn
+
+            inputBeganConn = UserInputService.InputBegan:Connect(onInputBegan)
+            inputEndedConn = UserInputService.InputEnded:Connect(onInputEnded)
+
+            -- Save connections to _G so we can disconnect when toggled off
+            _G.FlyConnections = {inputBeganConn, inputEndedConn}
+            _G.FlyObjects = {bodyVelocity, bodyGyro}
+
+        else
+            -- Disable fly
+            if _G.FlyConnections then
+                for _, conn in pairs(_G.FlyConnections) do
+                    conn:Disconnect()
+                end
+                _G.FlyConnections = nil
+            end
+            if _G.FlyObjects then
+                for _, obj in pairs(_G.FlyObjects) do
+                    if obj and obj.Parent then obj:Destroy() end
+                end
+                _G.FlyObjects = nil
+            end
+        end
+    end},
+}
+
+local function createToggle(t, posY)
+    local btn = Instance.new("TextButton", playerTab)
+    btn.Position = UDim2.new(0, 10, 0, posY)
+    btn.Size = UDim2.new(0, 200, 0, 25)
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.BackgroundColor3 = Color3.fromRGB(90, 90, 90)
+    Instance.new("UICorner", btn)
+
+    local savedState = loadSetting(t.setting) or false
+    local on = savedState
+    btn.Text = t.name .. (on and " ✅" or " ❌")
+    t.func(on)
+
+    btn.MouseButton1Click:Connect(function()
+        on = not on
+        btn.Text = t.name .. (on and " ✅" or " ❌")
+        t.func(on)
+        saveSetting(t.setting, on)
+    end)
+
+    return btn
+end
+
+for i, t in ipairs(toggles) do
+    createToggle(t, 70 + (i - 1) * 30)
+end
+
+-- Tools Tab
+local toolsTab = tabFrames["Tools"]
+
+local inputBox = Instance.new("TextBox", toolsTab)
+inputBox.Position = UDim2.new(0, 10, 0, 10)
+inputBox.Size = UDim2.new(0, 150, 0, 25)
+inputBox.PlaceholderText = "Tool ID"
+inputBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+inputBox.TextColor3 = Color3.new(0, 0, 0)
+
+local toolBtn = Instance.new("TextButton", toolsTab)
+toolBtn.Position = UDim2.new(0, 170, 0, 10)
+toolBtn.Size = UDim2.new(0, 100, 0, 25)
+toolBtn.Text = "Spawn Tool"
+toolBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+toolBtn.TextColor3 = Color3.new(1, 1, 1)
+
+toolBtn.MouseButton1Click:Connect(function()
+    local id = tonumber(inputBox.Text)
+    if id then
+        local success, model = pcall(function()
+            return InsertService:LoadAsset(id)
+        end)
+        if success and model then
+            local function findTool(obj)
+                if obj:IsA("Tool") then return obj end
+                for _, child in ipairs(obj:GetChildren()) do
+                    local t = findTool(child)
+                    if t then return t end
+                end
+            end
+            local tool = findTool(model)
+            if tool then
+                tool.Parent = player.Backpack
+            end
+        else
+            warn("Failed to load tool")
+        end
+    else
+        warn("Invalid tool ID")
+    end
 end)
 
-title.InputChanged:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-		dragInput = input
-	end
+-- Troll Tab (example: kill player)
+local trollTab = tabFrames["Troll"]
+
+local killBtn = Instance.new("TextButton", trollTab)
+killBtn.Position = UDim2.new(0, 10, 0, 10)
+killBtn.Size = UDim2.new(0, 150, 0, 30)
+killBtn.Text = "Kill Me"
+killBtn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+killBtn.TextColor3 = Color3.new(1, 1, 1)
+Instance.new("UICorner", killBtn)
+
+killBtn.MouseButton1Click:Connect(function()
+    if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+        player.Character:FindFirstChildOfClass("Humanoid").Health = 0
+    end
+end)
+
+-- Main tab sample label
+local mainTab = tabFrames["Main"]
+local mainLabel = Instance.new("TextLabel", mainTab)
+mainLabel.Size = UDim2.new(1, 0, 1, 0)
+mainLabel.BackgroundTransparency = 1
+mainLabel.TextColor3 = Color3.new(1, 1, 1)
+mainLabel.Font = Enum.Font.GothamBold
+mainLabel.TextSize = 20
+mainLabel.Text = "Welcome to Cashew's Script!"
+mainLabel.TextWrapped = true
+
+-- Dragging logic for mainFrame
+local dragging, dragInput, dragStart, startPos
+
+local function update(input)
+    local delta = input.Position - dragStart
+    mainFrame.Position = UDim2.new(
+        startPos.X.Scale,
+        startPos.X.Offset + delta.X,
+        startPos.Y.Scale,
+        startPos.Y.Offset + delta.Y
+    )
+end
+
+dragBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+dragBar.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        dragInput = input
+    end
 end)
 
 UserInputService.InputChanged:Connect(function(input)
-	if input == dragInput and dragging then
-		updateInput(input)
-	end
+    if input == dragInput and dragging then
+        update(input)
+    end
 end)
 
--- TAB BUTTONS
-local tabs = {"Main", "Player", "Tools", "Troll"}
-local tabButtons = {}
-local panels = {}
-
-for i, tabName in pairs(tabs) do
-	-- Buttons
-	local btn = Instance.new("TextButton", main)
-	btn.Size = UDim2.new(0, 80, 0, 30)
-	btn.Position = UDim2.new(0, (i-1)*85, 0, 35)
-	btn.Text = tabName
-	btn.BackgroundColor3 = Color3.fromRGB(40,40,40)
-	btn.TextColor3 = Color3.new(1,1,1)
-	btn.Font = Enum.Font.Gotham
-	Instance.new("UICorner", btn)
-	tabButtons[tabName] = btn
-	
-	-- Panels
-	local panel = Instance.new("Frame", main)
-	panel.Size = UDim2.new(1, -10, 1, -75)
-	panel.Position = UDim2.new(0, 5, 0, 70)
-	panel.BackgroundColor3 = Color3.fromRGB(25,25,25)
-	panel.Visible = false
-	Instance.new("UICorner", panel)
-	panels[tabName] = panel
-
-	btn.MouseButton1Click:Connect(function()
-		for _, p in pairs(panels) do p.Visible = false end
-		panel.Visible = true
-		for _, b in pairs(tabButtons) do b.BackgroundColor3 = Color3.fromRGB(40,40,40) end
-		btn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-	end)
-end
--- Show Main by default
-panels["Main"].Visible = true
-tabButtons["Main"].BackgroundColor3 = Color3.fromRGB(70,70,70)
-
--- FUNCTION TO CREATE BUTTONS
-local function addButton(parent, text, ypos, callback)
-	local btn = Instance.new("TextButton", parent)
-	btn.Size = UDim2.new(0, 300, 0, 30)
-	btn.Position = UDim2.new(0, 10, 0, ypos)
-	btn.BackgroundColor3 = Color3.fromRGB(50,50,50)
-	btn.TextColor3 = Color3.new(1,1,1)
-	btn.Text = text
-	btn.Font = Enum.Font.Gotham
-	Instance.new("UICorner", btn)
-	btn.MouseButton1Click:Connect(callback)
-	return btn
-end
-
--- FUNCTION TO CREATE TOGGLE BUTTONS WITH CHECKMARKS
-local function addToggle(parent, text, ypos, defaultState, callback)
-	local frame = Instance.new("Frame", parent)
-	frame.Size = UDim2.new(0, 300, 0, 30)
-	frame.Position = UDim2.new(0, 10, 0, ypos)
-	frame.BackgroundColor3 = Color3.fromRGB(50,50,50)
-	Instance.new("UICorner", frame)
-	
-	local label = Instance.new("TextLabel", frame)
-	label.Text = text
-	label.Size = UDim2.new(0.85, 0, 1, 0)
-	label.BackgroundTransparency = 1
-	label.TextColor3 = Color3.new(1,1,1)
-	label.Font = Enum.Font.Gotham
-	label.TextSize = 15
-	label.TextXAlignment = Enum.TextXAlignment.Left
-	
-	local toggleBtn = Instance.new("TextButton", frame)
-	toggleBtn.Size = UDim2.new(0.15, 0, 1, 0)
-	toggleBtn.Position = UDim2.new(0.85, 0, 0, 0)
-	toggleBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
-	Instance.new("UICorner", toggleBtn)
-	
-	local checked = defaultState
-	local function updateVisual()
-		if checked then
-			toggleBtn.Text = "✔"
-			toggleBtn.TextColor3 = Color3.fromRGB(0, 255, 0)
-		else
-			toggleBtn.Text = "✘"
-			toggleBtn.TextColor3 = Color3.fromRGB(255, 0, 0)
-		end
-	end
-	updateVisual()
-	
-	toggleBtn.MouseButton1Click:Connect(function()
-		checked = not checked
-		updateVisual()
-		callback(checked)
-	end)
-	
-	return frame, function() return checked end
-end
-
--- MAIN TAB BUTTONS
-local mainPanel = panels["Main"]
-addButton(mainPanel, "Reset Character", 10, function()
-	player:LoadCharacter()
-end)
-addButton(mainPanel, "Rejoin Server", 50, function()
-	TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, player)
-end)
-addButton(mainPanel, "Destroy GUI", 90, function()
-	gui:Destroy()
+-- Toggle GUI and blur effect
+local guiVisible = false
+toggleBtn.MouseButton1Click:Connect(function()
+    guiVisible = not guiVisible
+    mainFrame.Visible = guiVisible
+    blur.Enabled = guiVisible
+    UserInputService.MouseIconEnabled = guiVisible -- optional: show mouse when GUI active
 end)
 
--- PLAYER TAB
-local playerPanel = panels["Player"]
+-- Prevent camera movement when hovering GUI
+local camera = workspace.CurrentCamera
+local cameraControlEnabled = true
 
-local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-local speedValue = 16
-local jumpValue = 50
-local flyEnabled = false
-local espEnabled = false
-local infJumpEnabled = false
-
-local function getHumanoid()
-	local char = player.Character
-	if char then
-		return char:FindFirstChildOfClass("Humanoid")
-	end
-	return nil
+local function setCameraControl(enabled)
+    if enabled ~= cameraControlEnabled then
+        cameraControlEnabled = enabled
+        if cameraControlEnabled then
+            UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+        else
+            UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+        end
+    end
 end
 
-local speedSlider, jumpSlider
+local function checkCursorOverGui()
+    local mousePos = UserInputService:GetMouseLocation()
+    local guiPos = mainFrame.AbsolutePosition
+    local guiSize = mainFrame.AbsoluteSize
+    local overGui = mousePos.X >= guiPos.X and mousePos.X <= (guiPos.X + guiSize.X) and
+                    mousePos.Y >= guiPos.Y and mousePos.Y <= (guiPos.Y + guiSize.Y)
+    return overGui
+end
 
--- Speed slider setup
-local speedLabel = Instance.new("TextLabel", playerPanel)
-speedLabel.Text = "WalkSpeed: 16"
-speedLabel.Size = UDim2.new(0, 300, 0, 20)
-speedLabel.Position = UDim2.new(0, 10, 0, 10)
-speedLabel.BackgroundTransparency = 1
-speedLabel.TextColor3 = Color3.new(1,1,1)
-speedLabel.Font = Enum.Font.Gotham
-speedLabel.TextSize = 14
-
-speedSlider = Instance.new("TextButton", playerPanel)
-speedSlider.Text = "➖"
-speedSlider.Size = UDim2.new(0, 50, 0, 30)
-speedSlider.Position = UDim2.new(0, 10, 0, 35)
-speedSlider.BackgroundColor3 = Color3.fromRGB(40,40,40)
-Instance.new("UICorner", speedSlider)
-speedSlider.MouseButton1Click:Connect(function()
-	speedValue = math.clamp(speedValue - 1, 16, 500)
-	speedLabel.Text = "WalkSpeed: " .. speedValue
-	local h = getHumanoid()
-	if h then h.WalkSpeed = speedValue end
+RunService.RenderStepped:Connect(function()
+    if mainFrame.Visible then
+        setCameraControl(not checkCursorOverGui())
+    else
+        setCameraControl(true)
+    end
 end)
 
-local speedSliderInc = Instance.new("TextButton", playerPanel)
-speedSliderInc.Text = "➕"
-speedSliderInc.Size = UDim2.new(0, 50, 0, 30)
-speedSliderInc.Position = UDim2.new(0, 70, 0, 35)
-speedSliderInc.BackgroundColor3 = Color3.fromRGB(40,40,40)
-Instance.new("UICorner", speedSliderInc)
-speedSliderInc.MouseButton1Click:Connect(function()
-	speedValue = math.clamp(speedValue + 1, 16, 500)
-	speedLabel.Text = "WalkSpeed: " .. speedValue
-	local h = getHumanoid()
-	if h then h.WalkSpeed = speedValue end
-end)
-
--- Jump slider setup
-local jumpLabel = Instance.new("TextLabel", playerPanel)
-jumpLabel.Text = "JumpPower: 50"
-jumpLabel.Size = UDim2.new(0, 300, 0, 20)
-jumpLabel.Position = UDim2.new(0, 10, 0, 70)
-jumpLabel.BackgroundTransparency = 1
-jumpLabel.TextColor3 = Color3.new(1,1,1)
-jumpLabel.Font = Enum.Font.Gotham
-jumpLabel.TextSize = 14
-
-local jumpSliderDec = Instance.new("TextButton", playerPanel)
-jumpSliderDec.Text = "➖"
-jumpSliderDec.Size = UDim2.new(0, 50, 0, 30)
-jumpSliderDec.Position = UDim2.new(0, 10, 0, 95)
-jumpSliderDec.BackgroundColor3 = Color3.fromRGB(40,40,40)
-Instance.new("UICorner", jumpSliderDec)
-jumpSliderDec.MouseButton1Click:Connect(function()
-	jumpValue = math.clamp(jumpValue - 1, 50, 500)
-	jumpLabel.Text = "JumpPower: " .. jumpValue
-	local h = getHumanoid()
-	if h then h.JumpPower = jumpValue end
-end)
-
-local jumpSliderInc = Instance.new("TextButton", playerPanel)
-jumpSliderInc.Text = "➕"
-jumpSliderInc.Size = UDim2.new(0, 50, 0, 30)
-jumpSliderInc.Position = UDim2.new(0, 70, 0, 95)
-jumpSliderInc.BackgroundColor3 = Color3.fromRGB(40,40,40)
-Instance.new("UICorner", jumpSliderInc)
-jumpSliderInc.MouseButton1Click:Connect(function()
-	jumpValue = math.clamp(jumpValue + 1, 50, 500)
-	jumpLabel.Text = "JumpPower: " .. jumpValue
-	local h = getHumanoid()
-	if h then h.JumpPower = jumpValue end
-end)
-
--- Inf Jump toggle
-local infJumpToggle, infJumpState = addToggle(playerPanel, "Infinite Jump", 140, false, function(state)
-	infJumpEnabled = state
-end)
-
--- Fly toggle
-local flyToggle, flyState = addToggle(playerPanel, "Fly (Press F to toggle)", 180, false, function(state)
-	flyEnabled = state
-	if flyEnabled then
-		startFly()
-	else
-		stopFly()
-	end
-end)
-
--- ESP toggle
-local espToggle, espState = addToggle(playerPanel, "ESP", 220, false, function(state)
-	espEnabled = state
-	if espEnabled then
-		startESP()
-	else
-		stopESP()
-	end
-end)
-
--- Infinite Jump Logic
-local function onJumpRequest()
-	if infJumpEnabled then
-		local h = getHumanoid()
-		if h and not h:GetState().Name:match("Jumping") then
-			h:ChangeState(Enum.HumanoidStateType.Jumping)
-		end
-	end
+-- Character updates for WalkSpeed & JumpPower on spawn
+local function onCharacterAdded(char)
+    local humanoid = char:WaitForChild("Humanoid")
+    humanoid.WalkSpeed = walkSpeedValue
+    humanoid.JumpPower = jumpPowerValue
 end
 
-UserInputService.JumpRequest:Connect(onJumpRequest)
-
--- Fly Logic (simple)
-local flying = false
-local flySpeed = 50
-local flyBodyGyro
-local flyBodyVelocity
-
-function startFly()
-	if flying then return end
-	local char = player.Character
-	if not char then return end
-	local hrp = char:FindFirstChild("HumanoidRootPart")
-	if not hrp then return end
-	
-	flying = true
-	local bg = Instance.new("BodyGyro", hrp)
-	bg.P = 9e4
-	bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
-	bg.CFrame = hrp.CFrame
-	flyBodyGyro = bg
-	
-	local bv = Instance.new("BodyVelocity", hrp)
-	bv.Velocity = Vector3.new(0,0,0)
-	bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-	flyBodyVelocity = bv
-	
-	coroutine.wrap(function()
-		while flying do
-			RunService.Heartbeat:Wait()
-			local camCF = workspace.CurrentCamera.CFrame
-			local moveDir = Vector3.new()
-			if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-				moveDir = moveDir + camCF.LookVector
-			end
-			if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-				moveDir = moveDir - camCF.LookVector
-			end
-			if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-				moveDir = moveDir - camCF.RightVector
-			end
-			if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-				moveDir = moveDir + camCF.RightVector
-			end
-			bv.Velocity = moveDir.Unit * flySpeed
-			bg.CFrame = camCF
-		end
-	end)()
-end
-
-function stopFly()
-	flying = false
-	if flyBodyGyro then flyBodyGyro:Destroy() flyBodyGyro = nil end
-	if flyBodyVelocity then flyBodyVelocity:Destroy() flyBodyVelocity = nil end
-end
-
--- TOOLS TAB
-local toolsPanel = panels["Tools"]
-
-local toolboxTools = {
-	{ Name = "Glock 17", Id = 6216901640 },
-	{ Name = "Handcuffs", Id = 8562197053 },
-	{ Name = "X-26P Taser", Id = 5597203776 },
-	{ Name = "M4A1", Id = 10508432413 },
-	{ Name = "Riot Shield", Id = 10322192212 }
-}
-
-local function spawnTool(id)
-	local ok, model = pcall(function()
-		return InsertService:LoadAsset(id)
-	end)
-	if ok and model then
-		local tool = model:FindFirstChildOfClass("Tool") or model:FindFirstChildWhichIsA("Tool")
-		if tool then
-			tool.Parent = player.Backpack
-		end
-		model:Destroy()
-	end
-end
-
-local function addToolBtn(tool, ypos)
-	addButton(toolsPanel, tool.Name, ypos, function()
-		spawnTool(tool.Id)
-	end)
-end
-
-for i, tool in ipairs(toolboxTools) do
-	addToolBtn(tool, 10 + (i-1)*40)
-end
-
--- TROLL TAB
-local trollPanel = panels["Troll"]
-
-local trollLinks = {
-	{name = "⚡ Jerk", r6 = "https://pastefy.app/wa3v2Vgm/raw", r15 = "https://pastefy.app/YZoglOyJ/raw"}
-}
-
-local function addTrollBtn(name, url, ypos)
-	addButton(trollPanel, name, ypos, function()
-		local char = player.Character or player.CharacterAdded:Wait()
-		local isR15 = char:FindFirstChild("Humanoid") and char.Humanoid.RigType == Enum.HumanoidRigType.R15
-		local finalUrl = url
-		if isR15 and url:find("r15") then
-			finalUrl = url
-		elseif not isR15 and url:find("r6") then
-			finalUrl = url
-		end
-		-- Load & apply model
-		spawnToolFromUrl(finalUrl)
-	end)
-end
-
-local function spawnToolFromUrl(url)
-	-- Loads model from URL and parents to character
-	coroutine.wrap(function()
-		local success, result = pcall(function()
-			return game:GetObjects(url)[1]
-		end)
-		if success and result then
-			result.Parent = player.Character
-		end
-	end)()
-end
-
-local trollY = 10
-for _, v in pairs(trollLinks) do
-	addButton(trollPanel, v.name, trollY, function()
-		local char = player.Character or player.CharacterAdded:Wait()
-		local humanoid = char:FindFirstChildOfClass("Humanoid")
-		local isR15 = humanoid and humanoid.RigType == Enum.HumanoidRigType.R15
-		local url = isR15 and v.r15 or v.r6
-		spawnToolFromUrl(url)
-	end)
-	trollY = trollY + 40
-end
-
--- DISABLE CAMERA MOVEMENT WHEN GUI IS FOCUSED
-local function blockCameraInput()
-	local camera = workspace.CurrentCamera
-	local mouseFocused = false
-
-	gui.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			mouseFocused = true
-		end
-	end)
-
-	gui.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			mouseFocused = false
-		end
-	end)
-
-	RunService:BindToRenderStep("BlockCamera", Enum.RenderPriority.Camera.Value + 1, function()
-		if mouseFocused then
-			camera.CameraType = Enum.CameraType.Scriptable
-		else
-			camera.CameraType = Enum.CameraType.Custom
-		end
-	end)
-end
-blockCameraInput()
-
--- Initialize Humanoid WalkSpeed and JumpPower on spawn
-local function setupCharacter(char)
-	local h = char:WaitForChild("Humanoid")
-	h.WalkSpeed = speedValue
-	h.JumpPower = jumpValue
-end
-
-player.CharacterAdded:Connect(setupCharacter)
+player.CharacterAdded:Connect(onCharacterAdded)
 if player.Character then
-	setupCharacter(player.Character)
+    onCharacterAdded(player.Character)
 end
 
--- Auto reload humanoid reference on character respawn
-player.CharacterAdded:Connect(function(char)
-	humanoid = char:WaitForChild("Humanoid")
+-- Infinite jump logic
+_G.InfJump = loadSetting("InfiniteJump") or false
+UserInputService.JumpRequest:Connect(function()
+    if _G.InfJump and player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+        player.Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping)
+    end
 end)
-
