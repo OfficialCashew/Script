@@ -1,583 +1,266 @@
---[[
-Cashew's Script GUI with:
-- Vertical Tabs (Player, Main, Settings)
-- Player tab: toggles and draggable toggle buttons + sliders
-- Mobile friendly (scaling + touch draggable GUI)
-- Toggle button to open/close GUI
-- Title with game name
-]]
-
+-- Services
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
-
+local InsertService = game:GetService("InsertService")
+local TweenService = game:GetService("TweenService")
+local MarketplaceService = game:GetService("MarketplaceService")
 local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
 
-local function create(class, props)
-    local inst = Instance.new(class)
-    for k,v in pairs(props) do
-        inst[k] = v
-    end
-    return inst
-end
+-- Shared settings for saving position
+if not shared.CashewSettings then shared.CashewSettings = {} end
 
-local function addUICorner(parent, radius)
-    local c = create("UICorner", {Parent = parent})
-    c.CornerRadius = UDim.new(0, radius or 6)
-    return c
-end
+-- UI Setup
+local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+gui.Name = "CashewGUI"
+gui.ResetOnSpawn = false
 
--- Colors
-local mainBG = Color3.fromRGB(24,24,24)
-local accent = Color3.fromRGB(0,170,255)
-local tabHover = Color3.fromRGB(35,35,35)
-local textColor = Color3.fromRGB(220,220,220)
-local toggleOn = Color3.fromRGB(0,170,255)
-local toggleOff = Color3.fromRGB(80,80,80)
-local sliderBG = Color3.fromRGB(50,50,50)
-local sliderFill = Color3.fromRGB(0,170,255)
+-- Blur Setup
+local blur = Instance.new("BlurEffect", workspace)
+blur.Size = 0
+blur.Enabled = false
 
--- Get game name safely
-local success, gameName = pcall(function()
-    return game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name
+-- Icon Button
+local iconBtn = Instance.new("ImageButton", gui)
+iconBtn.Size = UDim2.new(0, 50,0,50)
+iconBtn.Position = UDim2.new(0,10,0,10)
+iconBtn.Image = "rbxassetid://<YOUR_ICON_ASSET_ID>"
+Instance.new("UICorner", iconBtn)
+Instance.new("UIStroke", iconBtn).Thickness = 2
+
+-- Main Window
+local main = Instance.new("Frame", gui)
+main.Size = UDim2.new(0,400,0,500)
+main.Position = shared.CashewSettings.LastPos or UDim2.new(0.5,-200,0.5,-250)
+main.BackgroundColor3 = Color3.fromRGB(30,30,30)
+Instance.new("UICorner", main)
+local stroke = Instance.new("UIStroke", main)
+stroke.Color = Color3.new(0.2,0.2,0.2); stroke.Thickness = 2
+
+-- Save pos on drag end
+main.Active = true
+main.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		main.Draggable = true
+	end
 end)
-if not success then
-    gameName = "Game"
+main.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		main.Draggable = false
+		shared.CashewSettings.LastPos = main.Position
+	end
+end)
+
+-- Blur effect toggle
+local function setBlur(on)
+	TweenService:Create(blur, TweenInfo.new(0.5), {Size = on and 24 or 0}):Play()
+	blur.Enabled = on
 end
 
--- ScreenGui
-local screenGui = create("ScreenGui", {
-    Name = "CashewScriptGUI",
-    Parent = playerGui,
-    ResetOnSpawn = false,
-    ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-})
+-- Icon Toggle
+local guiVisible = false
+iconBtn.MouseButton1Click:Connect(function()
+	guiVisible = not guiVisible
+	main.Visible = guiVisible
+	setBlur(guiVisible)
+	UserInputService.MouseBehavior = guiVisible and Enum.MouseBehavior.Default or Enum.MouseBehavior.LockCenter
+end)
 
--- Draggable GUI Container Frame
-local guiFrame = create("Frame", {
-    Parent = screenGui,
-    Size = UDim2.new(0,400,0,400),
-    Position = UDim2.new(0.5,-200,0.5,-200),
-    BackgroundColor3 = mainBG,
-    BorderSizePixel = 0,
-})
-addUICorner(guiFrame, 10)
+-- Auto open on join
+main.Visible = true; guiVisible = true; setBlur(true)
 
 -- Title bar
-local titleBar = create("Frame", {
-    Parent = guiFrame,
-    Size = UDim2.new(1,0,0,40),
-    BackgroundColor3 = accent,
-    BorderSizePixel = 0,
-    ZIndex = 5
-})
-addUICorner(titleBar, 10)
+local titleBar = Instance.new("Frame", main)
+titleBar.Size = UDim2.new(1,0,0,30)
+titleBar.BackgroundColor3 = Color3.fromRGB(20,20,20)
+titleBar.Position = UDim2.new(0,0,0,0)
+Instance.new("UICorner", titleBar)
 
-local titleLabel = create("TextLabel", {
-    Parent = titleBar,
-    Text = "Cashew's Script - "..gameName,
-    TextColor3 = Color3.new(1,1,1),
-    Font = Enum.Font.GothamBold,
-    TextSize = 18,
-    Size = UDim2.new(1,-20,1,0),
-    Position = UDim2.new(0,10,0,0),
-    BackgroundTransparency = 1,
-    TextXAlignment = Enum.TextXAlignment.Left,
-    ZIndex = 6
-})
+local title = Instance.new("TextLabel", titleBar)
+title.Size = UDim2.new(1,0,1,0)
+title.BackgroundTransparency = 1
+title.Font = Enum.Font.GothamBold
+title.Text = "Cashew's GUI • " .. pcall(function() return MarketplaceService:GetProductInfo(game.PlaceId).Name end) and tostring(game.PlaceId)
+title.TextColor3 = Color3.new(1,1,1)
 
--- Close button (top right)
-local closeButton = create("TextButton", {
-    Parent = titleBar,
-    Text = "✕",
-    TextColor3 = Color3.new(1,1,1),
-    Font = Enum.Font.GothamBold,
-    TextSize = 20,
-    Size = UDim2.new(0,40,1,0),
-    Position = UDim2.new(1,-40,0,0),
-    BackgroundTransparency = 1,
-    ZIndex = 6,
-    AutoButtonColor = false,
-})
-closeButton.MouseEnter:Connect(function()
-    closeButton.TextColor3 = Color3.fromRGB(255, 70, 70)
-end)
-closeButton.MouseLeave:Connect(function()
-    closeButton.TextColor3 = Color3.new(1,1,1)
-end)
-closeButton.MouseButton1Click:Connect(function()
-    guiFrame.Visible = false
-    toggleButton.Visible = true
-end)
+-- Tabs setup
+local tabs = {"Main","Player","Tools","Troll"}
+local buttons, panels = {}, {}
 
--- Draggable functionality for guiFrame
-do
-    local dragging = false
-    local dragInput, dragStart, startPos
-
-    titleBar.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragStart = input.Position
-            startPos = guiFrame.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
-            end)
-        end
-    end)
-    titleBar.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            dragInput = input
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
-            local delta = input.Position - dragStart
-            local newPos = UDim2.new(
-                math.clamp(startPos.X.Scale,0,1),
-                math.clamp(startPos.X.Offset + delta.X, 0, workspace.CurrentCamera.ViewportSize.X - guiFrame.AbsoluteSize.X),
-                math.clamp(startPos.Y.Scale,0,1),
-                math.clamp(startPos.Y.Offset + delta.Y, 0, workspace.CurrentCamera.ViewportSize.Y - guiFrame.AbsoluteSize.Y)
-            )
-            guiFrame.Position = newPos
-        end
-    end)
+local function createTabBtn(name,index)
+	local btn = Instance.new("TextButton",main)
+	btn.Size = UDim2.new(0,100,0,40)
+	btn.Position = UDim2.new(0,0,0,30+(index-1)*42)
+	btn.Text = name
+	btn.Font = Enum.Font.GothamBold; btn.TextColor3 = Color3.new(1,1,1)
+	btn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+	Instance.new("UICorner",btn)
+	local panel = Instance.new("Frame",main)
+	panel.BackgroundTransparency = 1
+	panel.Position = UDim2.new(0,100,0,30)
+	panel.Size = UDim2.new(1,-100,1,-30)
+	panel.Visible = index == 1
+	buttons[name]=btn; panels[name]=panel
+	btn.MouseButton1Click:Connect(function()
+		for _,p in pairs(panels) do p.Visible=false end
+		panel.Visible = true
+	end)
+	return panel
 end
 
--- Toggle Button to show GUI (for mobile and easy toggle)
-local toggleButton = create("TextButton", {
-    Parent = screenGui,
-    Text = "Cashew's Script",
-    BackgroundColor3 = accent,
-    TextColor3 = Color3.new(1,1,1),
-    Font = Enum.Font.GothamBold,
-    TextSize = 18,
-    Size = UDim2.new(0,140,0,40),
-    Position = UDim2.new(0, 20, 0.85, 0),
-    Visible = false,
-    ZIndex = 10,
-})
-addUICorner(toggleButton, 10)
+local mainPanel = createTabBtn("Main",1)
+local playerPanel = createTabBtn("Player",2)
+local toolsPanel = createTabBtn("Tools",3)
+local trollPanel = createTabBtn("Troll",4)
 
-toggleButton.MouseEnter:Connect(function()
-    toggleButton.BackgroundColor3 = Color3.fromRGB(0, 140, 220)
-end)
-toggleButton.MouseLeave:Connect(function()
-    toggleButton.BackgroundColor3 = accent
-end)
+-- Player tab UI
+local function addToggle(panel, posY, text, onChange)
+	local on = false
+	local btn = Instance.new("TextButton",panel)
+	btn.Position=UDim2.new(0,10,0,posY)
+	btn.Size=UDim2.new(0,200,0,30)
+	btn.Text = "❌ "..text
+	btn.Font=Enum.Font.Gotham; btn.TextColor3=Color3.new(1,1,1)
+	btn.BackgroundColor3 = Color3.fromRGB(50,50,50)
+	Instance.new("UICorner",btn)
+	btn.MouseButton1Click:Connect(function()
+		on = not on
+		btn.Text = (on and "✅ " or "❌ ") .. text
+		onChange(on)
+	end)
+	return btn
+end
 
-toggleButton.MouseButton1Click:Connect(function()
-    guiFrame.Visible = true
-    toggleButton.Visible = false
+local function addSlider(panel, y, text, min,max,default,callback)
+	local label=Instance.new("TextLabel",panel)
+	label.Position=UDim2.new(0,10,0,y)
+	label.Size=UDim2.new(0,200,0,20)
+	label.Text = text..": "..default
+	label.Font=Enum.Font.Gotham; label.TextColor3=Color3.new(1,1,1)
+	label.BackgroundTransparency=1
+	local slider = Instance.new("Frame",panel)
+	slider.Position=UDim2.new(0,220,0,y)
+	slider.Size=UDim2.new(0,150,0,10)
+	slider.BackgroundColor3=Color3.fromRGB(80,80,80)
+	Instance.new("UICorner",slider)
+	local knob = Instance.new("Frame",slider)
+	knob.Size=UDim2.new((default-min)/(max-min),0,1,0)
+	knob.BackgroundColor3=Color3.fromRGB(0,170,255)
+	Instance.new("UICorner",knob)
+	knob.Active=true; knob.Selectable=true
+	local dragging=false
+	local function update(x)
+		local pct=math.clamp((x-slider.AbsolutePosition.X)/slider.AbsoluteSize.X,0,1)
+		knob.Size=UDim2.new(pct,0,1,0)
+		knob.Position=UDim2.new(pct,0,0,0)
+		local value=math.floor(min+(max-min)*pct)
+		label.Text = text..": "..value
+		callback(value)
+	end
+	knob.InputBegan:Connect(function(i)
+		if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dragging=true end
+	end)
+	UserInputService.InputEnded:Connect(function(i) if dragging then dragging=false end end)
+	UserInputService.InputChanged:Connect(function(i)
+		if dragging then update(i.Position.X) end
+	end)
+end
+
+-- Speed and Jump sliders
+addSlider(playerPanel,10,"WalkSpeed",16,200,16,function(v)
+	local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	if hum then hum.WalkSpeed=v end
+end)
+addSlider(playerPanel,60,"JumpPower",50,300,50,function(v)
+	local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	if hum then hum.JumpPower=v end
 end)
 
--- Left tab container
-local tabWidth = 110
-local tabContainer = create("Frame", {
-    Parent = guiFrame,
-    Size = UDim2.new(0, tabWidth, 1, -40),
-    Position = UDim2.new(0, 0, 0, 40),
-    BackgroundColor3 = mainBG,
-})
-addUICorner(tabContainer, 10)
+-- Toggle features
+addToggle(playerPanel, 110, "Infinite Jump", function(on)
+	_G.InfJump = on
+end)
 
--- Content container (tab pages)
-local contentContainer = create("Frame", {
-    Parent = guiFrame,
-    Size = UDim2.new(1, -tabWidth, 1, -40),
-    Position = UDim2.new(0, tabWidth, 0, 40),
-    BackgroundColor3 = mainBG,
-})
-addUICorner(contentContainer, 10)
+UserInputService.JumpRequest:Connect(function()
+	if _G.InfJump and player.Character then
+		player.Character:FindFirstChildOfClass("Humanoid"):ChangeState("Jumping")
+	end
+end)
 
--- Tab Buttons list
-local tabs = {"Player", "Main", "Settings"}
+addToggle(playerPanel, 150, "Invisibility", function(on)
+	for _,part in ipairs(player.Character and player.Character:GetDescendants() or {}) do
+		if part:IsA("BasePart") or part:IsA("Decal") then
+			part.Transparency = on and 1 or 0
+		end
+	end
+end)
 
-local selectedTab = nil
+-- Fly toggle (simple float)
+local flying = false
+local flySpeed = 50
+addToggle(playerPanel, 190, "Fly", function(on)
+	flying = on
+	if on then
+		local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			hrp.Anchored = true
+			coroutine.wrap(function()
+				while flying and hrp do
+					local cam = workspace.CurrentCamera
+					hrp.CFrame = hrp.CFrame:Lerp(cam.CFrame, flySpeed/1000)
+					wait()
+				end
+				if hrp then hrp.Anchored = false end
+			end)()
+		end
+	end
+end)
 
-local tabButtons = {}
-local tabPages = {}
+-- Tools Tab
+local toolsID = Instance.new("TextBox",toolsPanel)
+toolsID.Position=UDim2.new(0,10,0,10); toolsID.Size=UDim2.new(0,150,0,25)
+toolsID.PlaceholderText="Tool ID"
+toolsID.BackgroundColor3 = Color3.fromRGB(255,255,255)
+toolsID.TextColor3 = Color3.new(0,0,0)
 
--- Function to create tab button
-local function createTabButton(name, index)
-    local btn = create("TextButton", {
-        Parent = tabContainer,
-        Text = name,
-        BackgroundColor3 = mainBG,
-        TextColor3 = textColor,
-        Font = Enum.Font.GothamBold,
-        TextSize = 16,
-        Size = UDim2.new(1, 0, 0, 40),
-        Position = UDim2.new(0, 0, 0, 40*(index-1)),
-        AutoButtonColor = false,
-        BorderSizePixel = 0,
-        ZIndex = 10,
-    })
-    addUICorner(btn, 6)
+local spawnBtn = Instance.new("TextButton",toolsPanel)
+spawnBtn.Position=UDim2.new(0,170,0,10); spawnBtn.Size=UDim2.new(0,100,0,25)
+spawnBtn.Text="Spawn Tool"; spawnBtn.BackgroundColor3=Color3.fromRGB(80,80,80)
+spawnBtn.TextColor3=Color3.new(1,1,1)
+Instance.new("UICorner",spawnBtn)
+spawnBtn.MouseButton1Click:Connect(function()
+	local id=tonumber(toolsID.Text)
+	if id then
+		local ok,model=pcall(function() return InsertService:LoadAsset(id) end)
+		if ok and model then
+			local function findTool(o)
+				if o:IsA("Tool") then return o end
+				for _,c in ipairs(o:GetChildren()) do
+					local t=findTool(c); if t then return t end
+				end
+			end
+			local tool=findTool(model)
+			if tool then tool.Parent = player.Backpack end
+			model:Destroy()
+		end
+	end
+end)
 
-    btn.MouseEnter:Connect(function()
-        if selectedTab ~= name then
-            btn.BackgroundColor3 = tabHover
-        end
-    end)
-    btn.MouseLeave:Connect(function()
-        if selectedTab ~= name then
-            btn.BackgroundColor3 = mainBG
-        end
-    end)
-    btn.MouseButton1Click:Connect(function()
-        selectTab(name)
-    end)
+-- Troll Tab
+local jerkBtn = Instance.new("TextButton",t trollPanel)
+jerkBtn.Position=UDim2.new(0,10,0,10); jerkBtn.Size=UDim2.new(0,180,0,35)
+jerkBtn.Text="⚡ Jerk"; jerkBtn.BackgroundColor3=Color3.fromRGB(60,60,60); jerkBtn.TextColor3=Color3.new(1,1,1)
+Instance.new("UICorner", jerkBtn)
 
-    return btn
+local function runFromURL(url)
+	local s,r=pcall(function() return game:HttpGet(url) end)
+	if s then loadstring(r)() else warn("Error loading troll script:",r) end
 end
 
--- Clear all tab pages visibility
-local function clearTabs()
-    for _,page in pairs(tabPages) do
-        page.Visible = false
-    end
-    for _,btn in pairs(tabButtons) do
-        btn.BackgroundColor3 = mainBG
-    end
-end
-
--- Select tab function
-function selectTab(name)
-    clearTabs()
-    selectedTab = name
-    tabPages[name].Visible = true
-    tabButtons[name].BackgroundColor3 = accent
-end
-
--- Create toggle button (switch) with draggable circle
--- Returns a frame with toggle state and callback on change
-local function createToggle(parent, pos, label, default, callback)
-    local toggleFrame = create("Frame", {
-        Parent = parent,
-        Size = UDim2.new(1, -20, 0, 36),
-        Position = pos,
-        BackgroundTransparency = 1,
-    })
-    local labelTxt = create("TextLabel", {
-        Parent = toggleFrame,
-        Text = label,
-        Font = Enum.Font.Gotham,
-        TextSize = 16,
-        TextColor3 = textColor,
-        BackgroundTransparency = 1,
-        Size = UDim2.new(0.65, 0, 1, 0),
-        TextXAlignment = Enum.TextXAlignment.Left,
-        Position = UDim2.new(0, 10, 0, 0),
-    })
-
-    -- Toggle switch container
-    local toggleSwitch = create("Frame", {
-        Parent = toggleFrame,
-        Size = UDim2.new(0, 50, 0, 24),
-        Position = UDim2.new(1, -60, 0, 6),
-        BackgroundColor3 = toggleOff,
-        ClipsDescendants = true,
-        BorderSizePixel = 0,
-    })
-    addUICorner(toggleSwitch, 12)
-
-    -- Circle draggable
-    local circle = create("Frame", {
-        Parent = toggleSwitch,
-        Size = UDim2.new(0, 22, 0, 22),
-        Position = UDim2.new(default and 1 or 0, -22, 0, 1),
-        BackgroundColor3 = Color3.new(1,1,1),
-        BorderSizePixel = 0,
-        ZIndex = 5,
-    })
-    addUICorner(circle, 11)
-
-    local dragging = false
-    local dragInput, dragStart, startPos
-
-    local function updateToggle(state)
-        if state then
-            toggleSwitch.BackgroundColor3 = toggleOn
-            circle.Position = UDim2.new(1, -22, 0, 1)
-        else
-            toggleSwitch.BackgroundColor3 = toggleOff
-            circle.Position = UDim2.new(0, 0, 0, 1)
-        end
-        callback(state)
-    end
-
-    -- Click to toggle
-    toggleSwitch.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            updateToggle(not (circle.Position.X.Scale > 0.5))
-        end
-    end)
-
-    -- Draggable circle
-    circle.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragStart = input.Position
-            startPos = circle.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                    -- Snap toggle based on position
-                    if circle.Position.X.Scale > 0.5 then
-                        updateToggle(true)
-                    else
-                        updateToggle(false)
-                    end
-                end
-            end)
-        end
-    end)
-
-    circle.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            dragInput = input
-        end
-    end)
-
-    UserInputService.InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
-            local deltaX = input.Position.X - dragStart.X
-            local totalWidth = toggleSwitch.AbsoluteSize.X - circle.AbsoluteSize.X
-            local relativeX = math.clamp(startPos.X.Offset + deltaX, 0, totalWidth)
-            circle.Position = UDim2.new(0, relativeX, 0, 1)
-            -- Background fill interpolation
-            local scale = relativeX / totalWidth
-            toggleSwitch.BackgroundColor3 = toggleOff:Lerp(toggleOn, scale)
-        end
-    end)
-
-    -- Initialize
-    updateToggle(default)
-
-    return toggleFrame
-end
-
--- Create slider with draggable circle
--- Arguments: parent, position UDim2, label string, min, max, default, callback(value)
-local function createSlider(parent, pos, label, min, max, default, callback)
-    local sliderFrame = create("Frame", {
-        Parent = parent,
-        Size = UDim2.new(1, -20, 0, 50),
-        Position = pos,
-        BackgroundTransparency = 1,
-    })
-
-    local labelTxt = create("TextLabel", {
-        Parent = sliderFrame,
-        Text = label,
-        Font = Enum.Font.Gotham,
-        TextSize = 16,
-        TextColor3 = textColor,
-        BackgroundTransparency = 1,
-        Size = UDim2.new(1, 0, 0, 20),
-        Position = UDim2.new(0, 10, 0, 0),
-        TextXAlignment = Enum.TextXAlignment.Left,
-    })
-
-    local valueLabel = create("TextLabel", {
-        Parent = sliderFrame,
-        Text = tostring(default),
-        Font = Enum.Font.Gotham,
-        TextSize = 14,
-        TextColor3 = accent,
-        BackgroundTransparency = 1,
-        Size = UDim2.new(0, 40, 0, 20),
-        Position = UDim2.new(1, -50, 0, 0),
-        TextXAlignment = Enum.TextXAlignment.Right,
-    })
-
-    local sliderBar = create("Frame", {
-        Parent = sliderFrame,
-        Size = UDim2.new(1, -40, 0, 10),
-        Position = UDim2.new(0, 20, 0, 30),
-        BackgroundColor3 = sliderBG,
-        BorderSizePixel = 0,
-    })
-    addUICorner(sliderBar, 5)
-
-    local sliderFill = create("Frame", {
-        Parent = sliderBar,
-        Size = UDim2.new(0, 0, 1, 0),
-        BackgroundColor3 = sliderFill,
-        BorderSizePixel = 0,
-    })
-    addUICorner(sliderFill, 5)
-
-    local sliderCircle = create("Frame", {
-        Parent = sliderBar,
-        Size = UDim2.new(0, 24, 0, 24),
-        BackgroundColor3 = Color3.new(1,1,1),
-        BorderSizePixel = 0,
-        Position = UDim2.new(0, 0, 0.5, -12),
-        ZIndex = 5,
-    })
-    addUICorner(sliderCircle, 12)
-
-    local dragging = false
-    local dragInput, dragStart, startPos
-
-    local function updateSlider(posX)
-        local width = sliderBar.AbsoluteSize.X
-        local x = math.clamp(posX, 0, width)
-        local scale = x / width
-        sliderFill.Size = UDim2.new(scale, 0, 1, 0)
-        sliderCircle.Position = UDim2.new(scale, -12, 0.5, -12)
-        local value = min + (max - min)*scale
-        valueLabel.Text = string.format("%.1f", value)
-        callback(value)
-    end
-
-    sliderCircle.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragStart = input.Position
-            startPos = sliderCircle.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
-            end)
-        end
-    end)
-
-    sliderCircle.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            dragInput = input
-        end
-    end)
-
-    UserInputService.InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
-            local delta = input.Position.X - dragStart.X
-            local absPos = sliderBar.AbsolutePosition.X
-            updateSlider(input.Position.X - absPos)
-        end
-    end)
-
-    -- Also allow clicking on slider bar to jump slider
-    sliderBar.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            local mouseX = input.Position.X
-            local absPos = sliderBar.AbsolutePosition.X
-            updateSlider(mouseX - absPos)
-        end
-    end)
-
-    -- Init slider to default value
-    RunService.Heartbeat:Wait()
-    local initScale = (default - min) / (max - min)
-    updateSlider(initScale * sliderBar.AbsoluteSize.X)
-
-    return sliderFrame
-end
-
--- Create tab pages
-for i, tabName in ipairs(tabs) do
-    local page = create("ScrollingFrame", {
-        Parent = contentContainer,
-        Size = UDim2.new(1, 0, 1, 0),
-        BackgroundTransparency = 1,
-        ScrollBarThickness = 4,
-        Visible = false,
-        CanvasSize = UDim2.new(0,0,0,0),
-        AutomaticCanvasSize = Enum.AutomaticSize.Y,
-        Name = tabName.."Page",
-        VerticalScrollBarInset = Enum.ScrollBarInset.Always,
-    })
-    tabPages[tabName] = page
-    tabButtons[tabName] = createTabButton(tabName, i)
-end
-
--- Player tab content example
-do
-    local page = tabPages["Player"]
-    local y = 10
-
-    -- Toggles example
-    local toggles = {
-        {label = "Invisibility", default = false},
-        {label = "Speed Boost", default = true},
-        {label = "Jump Boost", default = true},
-    }
-
-    for i,tog in ipairs(toggles) do
-        createToggle(page, UDim2.new(0,0,0,y), tog.label, tog.default, function(state)
-            print(tog.label.." toggled:", state)
-            -- Put your logic here
-        end)
-        y = y + 50
-    end
-
-    -- Sliders example
-    createSlider(page, UDim2.new(0,0,0,y), "Speed", 16, 100, 16, function(value)
-        print("Speed set to:", value)
-        -- Your speed logic here
-    end)
-    y = y + 60
-
-    createSlider(page, UDim2.new(0,0,0,y), "Jump Height", 50, 300, 50, function(value)
-        print("Jump Height set to:", value)
-        -- Your jump logic here
-    end)
-    y = y + 70
-end
-
--- Main tab example (empty placeholder)
-do
-    local page = tabPages["Main"]
-    local lbl = create("TextLabel", {
-        Parent = page,
-        Text = "Main tab content goes here",
-        Font = Enum.Font.Gotham,
-        TextSize = 18,
-        TextColor3 = textColor,
-        BackgroundTransparency = 1,
-        Size = UDim2.new(1, -20, 0, 30),
-        Position = UDim2.new(0, 10, 0, 10),
-        TextXAlignment = Enum.TextXAlignment.Left,
-    })
-end
-
--- Settings tab example (empty placeholder)
-do
-    local page = tabPages["Settings"]
-    local lbl = create("TextLabel", {
-        Parent = page,
-        Text = "Settings tab content goes here",
-        Font = Enum.Font.Gotham,
-        TextSize = 18,
-        TextColor3 = textColor,
-        BackgroundTransparency = 1,
-        Size = UDim2.new(1, -20, 0, 30),
-        Position = UDim2.new(0, 10, 0, 10),
-        TextXAlignment = Enum.TextXAlignment.Left,
-    })
-end
-
--- Select default tab
-selectTab("Player")
-
--- Show GUI initially
-guiFrame.Visible = true
-toggleButton.Visible = false
-
--- Mobile support: scale GUI with screen size
-local function updateGuiScale()
-    local screenSize = workspace.CurrentCamera.ViewportSize
-    local scaleFactor = math.clamp(screenSize.X / 1920, 0.5, 1)
-    guiFrame.Size = UDim2.new(0, 400 * scaleFactor, 0, 400 * scaleFactor)
-    toggleButton.Position = UDim2.new(0, 20, 0.85, 0)
-end
-UserInputService:GetPropertyChangedSignal("WindowSize"):Connect(updateGuiScale)
-updateGuiScale()
-
-return screenGui
+jerkBtn.MouseButton1Click:Connect(function()
+	local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	if hum.RigType == Enum.HumanoidRigType.R6 then
+		runFromURL("https://pastefy.app/wa3v2Vgm/raw")
+	else
+		runFromURL("https://pastefy.app/YZoglOyJ/raw")
+	end
+end)
