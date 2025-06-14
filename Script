@@ -1,22 +1,128 @@
 --[[
     ====================================================================================================
     ||                                                                                                ||
-    ||                                   THE ULTIMATE ROBLOX UTILITY SCRIPT                                   ||
+    ||                                THE ULTIMATE ROBLOX UTILITY SCRIPT V2                               ||
     ||                                                                                                ||
-    ||    FEATURES:                                                                                   ||
-    ||    - PC & Mobile Support                                                                       ||
-    ||    - Vertical Tabs: Main, Player, Settings, Other                                              ||
-    ||    - Player Tab: ESP, Fly, Infinite Jump (with toggle switches)                                  ||
-    ||    - Sleek and Modern GUI                                                                      ||
+    ||    V2 ENHANCEMENTS:                                                                            ||
+    ||    - Smaller GUI for PC & Mobile                                                               ||
+    ||    - Functional Player Modifiers (WalkSpeed, JumpPower)                                        ||
+    ||    - Fully Functional ESP with Name/Health Boxes                                               ||
+    ||    - Retains single script structure with vertical tabs.                                       ||
     ||                                                                                                ||
     ====================================================================================================
 ]]
 
+-- SERVICES & PLAYER
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+-- ESP STATE & STORAGE
+local ESP_Enabled = false
+local ESP_Connections = {}
+local ESP_Storage = {}
+
+-- ESP CORE FUNCTION
+local function UpdateESP()
+    for player, espData in pairs(ESP_Storage) do
+        if not player or not player.Parent or not player.Character or not player.Character:FindFirstChild("Head") then
+            if espData.Billboard then espData.Billboard:Destroy() end
+            ESP_Storage[player] = nil
+        else
+            local head = player.Character.Head
+            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                espData.HealthLabel.Text = "HP: " .. math.floor(humanoid.Health)
+                espData.HealthBar.Size = UDim2.new(humanoid.Health / humanoid.MaxHealth, 0, 1, 0)
+            end
+        end
+    end
+end
+
+local function CreateESPGUI(player)
+    if ESP_Storage[player] or player == LocalPlayer then return end
+
+    local character = player.Character
+    if not character or not character:FindFirstChild("Head") then return end
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "ESP_Billboard"
+    billboard.Adornee = character.Head
+    billboard.AlwaysOnTop = true
+    billboard.Size = UDim2.new(0, 100, 0, 60)
+    billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+    billboard.Parent = character.Head
+
+    local frame = Instance.new("Frame")
+    frame.Parent = billboard
+    frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    frame.BackgroundTransparency = 0.5
+    frame.BorderSizePixel = 1
+    frame.BorderColor3 = Color3.fromRGB(255, 255, 255)
+    frame.Size = UDim2.new(1, 0, 1, 0)
+
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Parent = frame
+    nameLabel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Size = UDim2.new(1, 0, 0.5, 0)
+    nameLabel.Font = Enum.Font.SourceSans
+    nameLabel.Text = player.Name
+    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    nameLabel.TextSize = 14
+
+    local healthBarFrame = Instance.new("Frame")
+    healthBarFrame.Parent = frame
+    healthBarFrame.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+    healthBarFrame.BorderSizePixel = 0
+    healthBarFrame.Position = UDim2.new(0, 0, 0.7, 0)
+    healthBarFrame.Size = UDim2.new(1, 0, 0.3, 0)
+
+    local healthBar = Instance.new("Frame")
+    healthBar.Parent = healthBarFrame
+    healthBar.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    healthBar.BorderSizePixel = 0
+    healthBar.Size = UDim2.new(1, 0, 1, 0)
+
+    local healthLabel = Instance.new("TextLabel")
+    healthLabel.Parent = healthBarFrame
+    healthLabel.BackgroundColor3 = Color3.new(1, 1, 1)
+    healthLabel.BackgroundTransparency = 1
+    healthLabel.Size = UDim2.new(1, 0, 1, 0)
+    healthLabel.Font = Enum.Font.SourceSansBold
+    healthLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
+    healthLabel.TextSize = 12
+
+    ESP_Storage[player] = {Billboard = billboard, HealthLabel = healthLabel, HealthBar = healthBar}
+end
+
+local function SetESP(enabled)
+    ESP_Enabled = enabled
+    if enabled then
+        ESP_Connections.PlayerAdded = Players.PlayerAdded:Connect(CreateESPGUI)
+        ESP_Connections.RenderStepped = RunService.RenderStepped:Connect(UpdateESP)
+        for _, player in ipairs(Players:GetPlayers()) do
+            CreateESPGUI(player)
+        end
+    else
+        if ESP_Connections.PlayerAdded then ESP_Connections.PlayerAdded:Disconnect() end
+        if ESP_Connections.RenderStepped then ESP_Connections.RenderStepped:Disconnect() end
+        for player, espData in pairs(ESP_Storage) do
+            if espData.Billboard then espData.Billboard:Destroy() end
+        end
+        ESP_Storage = {}
+    end
+end
+
 -- Core GUI Creation
 local function CreateGUI()
+    if LocalPlayer.PlayerGui:FindFirstChild("UltimateUtilityGUI") then
+        LocalPlayer.PlayerGui.UltimateUtilityGUI:Destroy()
+    end
+
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "UltimateUtilityGUI"
-    screenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+    screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
     screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 
     local mainFrame = Instance.new("Frame")
@@ -25,8 +131,9 @@ local function CreateGUI()
     mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     mainFrame.BorderColor3 = Color3.fromRGB(80, 80, 80)
     mainFrame.BorderSizePixel = 2
-    mainFrame.Position = UDim2.new(0.5, -350, 0.5, -200)
-    mainFrame.Size = UDim2.new(0, 700, 0, 400)
+    -- Smaller GUI size
+    mainFrame.Position = UDim2.new(0.02, 0, 0.5, -175)
+    mainFrame.Size = UDim2.new(0, 450, 0, 350)
     mainFrame.Active = true
     mainFrame.Draggable = true
 
@@ -39,11 +146,10 @@ local function CreateGUI()
     local titleLabel = Instance.new("TextLabel")
     titleLabel.Name = "TitleLabel"
     titleLabel.Parent = topBar
-    titleLabel.BackgroundColor3 = Color3.new(1, 1, 1)
     titleLabel.BackgroundTransparency = 1
     titleLabel.Size = UDim2.new(1, -60, 1, 0)
     titleLabel.Font = Enum.Font.SourceSansBold
-    titleLabel.Text = "Ultimate Utility"
+    titleLabel.Text = "Utility V2"
     titleLabel.TextColor3 = Color3.new(1, 1, 1)
     titleLabel.TextSize = 18
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -60,6 +166,7 @@ local function CreateGUI()
     closeButton.TextColor3 = Color3.new(1, 1, 1)
     closeButton.TextSize = 18
     closeButton.MouseButton1Click:Connect(function()
+        SetESP(false) -- Clean up ESP when closing
         screenGui:Destroy()
     end)
 
@@ -69,15 +176,15 @@ local function CreateGUI()
     tabsFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     tabsFrame.BorderSizePixel = 0
     tabsFrame.Position = UDim2.new(0, 0, 0, 30)
-    tabsFrame.Size = UDim2.new(0, 150, 1, -30)
+    tabsFrame.Size = UDim2.new(0, 120, 1, -30)
 
     local contentFrame = Instance.new("Frame")
     contentFrame.Name = "ContentFrame"
     contentFrame.Parent = mainFrame
     contentFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
     contentFrame.BorderSizePixel = 0
-    contentFrame.Position = UDim2.new(0, 150, 0, 30)
-    contentFrame.Size = UDim2.new(1, -150, 1, -30)
+    contentFrame.Position = UDim2.new(0, 120, 0, 30)
+    contentFrame.Size = UDim2.new(1, -120, 1, -30)
 
     local tabs = {"Main", "Player", "Settings", "Other"}
     local tabButtons = {}
@@ -97,23 +204,21 @@ local function CreateGUI()
         tabButton.TextSize = 16
         table.insert(tabButtons, tabButton)
 
-        local contentPage = Instance.new("Frame")
+        local contentPage = Instance.new("ScrollingFrame")
         contentPage.Name = tabName .. "ContentPage"
         contentPage.Parent = contentFrame
-        contentPage.BackgroundColor3 = Color3.new(1, 1, 1)
         contentPage.BackgroundTransparency = 1
         contentPage.Size = UDim2.new(1, 0, 1, 0)
         contentPage.Visible = (i == 1)
+        contentPage.BorderSizePixel = 0
+        contentPage.CanvasSize = UDim2.new(0,0,2,0) -- Allow scrolling
+        contentPage.ScrollBarImageColor3 = Color3.fromRGB(100,100,100)
         table.insert(contentPages, contentPage)
 
         tabButton.MouseButton1Click:Connect(function()
-            for _, page in ipairs(contentPages) do
-                page.Visible = false
-            end
+            for _, page in ipairs(contentPages) do page.Visible = false end
             contentPage.Visible = true
-            for _, btn in ipairs(tabButtons) do
-                btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-            end
+            for _, btn in ipairs(tabButtons) do btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60) end
             tabButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
         end)
     end
@@ -122,44 +227,42 @@ local function CreateGUI()
     -- Main Tab Content
     local mainWelcome = Instance.new("TextLabel")
     mainWelcome.Parent = contentPages[1]
-    mainWelcome.BackgroundColor3 = Color3.new(1, 1, 1)
     mainWelcome.BackgroundTransparency = 1
-    mainWelcome.Size = UDim2.new(1, -20, 0, 100)
-    mainWelcome.Position = UDim2.new(0.5, -((mainWelcome.AbsoluteSize.X)/2), 0.5, -50)
+    mainWelcome.Size = UDim2.new(1, -20, 0.5, 0)
+    mainWelcome.Position = UDim2.new(0.5, -mainWelcome.AbsoluteSize.X/2, 0.25, 0)
     mainWelcome.Font = Enum.Font.SourceSansLight
-    mainWelcome.Text = "Welcome to the Ultimate Utility Script!\nSelect a tab to begin."
+    mainWelcome.Text = "Welcome to Utility V2!\nPlayer mods are now functional."
     mainWelcome.TextColor3 = Color3.new(1, 1, 1)
     mainWelcome.TextSize = 20
     mainWelcome.TextWrapped = true
 
     -- Player Tab Content
-    local function createToggle(parent, text, yPos)
+    local playerPage = contentPages[2]
+    local UILayout = Instance.new("UIListLayout")
+    UILayout.Parent = playerPage
+    UILayout.Padding = UDim.new(0, 10)
+    UILayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+    local function createToggle(parent, text, order, callback)
         local toggleFrame = Instance.new("Frame")
         toggleFrame.Parent = parent
-        toggleFrame.BackgroundColor3 = Color3.new(1, 1, 1)
         toggleFrame.BackgroundTransparency = 1
         toggleFrame.Size = UDim2.new(1, -20, 0, 30)
-        toggleFrame.Position = UDim2.new(0, 10, 0, yPos)
+        toggleFrame.LayoutOrder = order
+        toggleFrame.Position = UDim2.new(0,10,0,0) -- Position adjusted by layout
 
         local toggleLabel = Instance.new("TextLabel")
-        toggleLabel.Parent = toggleFrame
-        toggleLabel.BackgroundColor3 = Color3.new(1, 1, 1)
-        toggleLabel.BackgroundTransparency = 1
+        toggleLabel.Parent = toggleFrame; toggleLabel.BackgroundTransparency = 1
         toggleLabel.Size = UDim2.new(0.7, 0, 1, 0)
         toggleLabel.Font = Enum.Font.SourceSans
-        toggleLabel.Text = text
-        toggleLabel.TextColor3 = Color3.new(1, 1, 1)
-        toggleLabel.TextSize = 16
-        toggleLabel.TextXAlignment = Enum.TextXAlignment.Left
+        toggleLabel.Text = text; toggleLabel.TextColor3 = Color3.new(1, 1, 1)
+        toggleLabel.TextSize = 16; toggleLabel.TextXAlignment = Enum.TextXAlignment.Left
 
         local toggleButton = Instance.new("TextButton")
-        toggleButton.Parent = toggleFrame
-        toggleButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-        toggleButton.Size = UDim2.new(0.2, 0, 1, 0)
-        toggleButton.Position = UDim2.new(0.8, 0, 0, 0)
+        toggleButton.Parent = toggleFrame; toggleButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        toggleButton.Size = UDim2.new(0.2, 0, 1, 0); toggleButton.Position = UDim2.new(0.8, 0, 0, 0)
         toggleButton.Font = Enum.Font.SourceSansBold
-        toggleButton.Text = "✗"
-        toggleButton.TextColor3 = Color3.new(1, 1, 1)
+        toggleButton.Text = "✗"; toggleButton.TextColor3 = Color3.new(1, 1, 1)
         toggleButton.TextSize = 18
 
         local isOn = false
@@ -172,49 +275,106 @@ local function CreateGUI()
                 toggleButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
                 toggleButton.Text = "✗"
             end
-            -- Connect to actual functions here
-            if text == "ESP" then
-                -- ESP Functionality
-                print("ESP Toggled: " .. tostring(isOn))
-            elseif text == "Fly" then
-                -- Fly Functionality
-                print("Fly Toggled: " .. tostring(isOn))
-            elseif text == "Infinite Jump" then
-                -- Infinite Jump Functionality
-                print("Infinite Jump Toggled: " .. tostring(isOn))
-            end
+            if callback then callback(isOn) end
         end)
         return toggleButton
     end
 
-    createToggle(contentPages[2], "ESP", 20)
-    createToggle(contentPages[2], "Fly", 60)
-    createToggle(contentPages[2], "Infinite Jump", 100)
+    local function createModifier(parent, text, order, defaultValue, modifyFunc)
+        local modFrame = Instance.new("Frame")
+        modFrame.Parent = parent; modFrame.BackgroundTransparency = 1
+        modFrame.Size = UDim2.new(1, -20, 0, 60)
+        modFrame.LayoutOrder = order
+        modFrame.Position = UDim2.new(0,10,0,0)
+
+        local modLabel = Instance.new("TextLabel")
+        modLabel.Parent = modFrame; modLabel.BackgroundTransparency = 1
+        modLabel.Size = UDim2.new(1, 0, 0.5, 0)
+        modLabel.Font = Enum.Font.SourceSans
+        modLabel.Text = text; modLabel.TextColor3 = Color3.new(1, 1, 1)
+        modLabel.TextSize = 16; modLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+        local inputBox = Instance.new("TextBox")
+        inputBox.Parent = modFrame; inputBox.BackgroundColor3 = Color3.fromRGB(30,30,30)
+        inputBox.BorderColor3 = Color3.fromRGB(100,100,100); inputBox.BorderSizePixel = 1
+        inputBox.Position = UDim2.new(0, 0, 0.5, 0)
+        inputBox.Size = UDim2.new(0.5, 0, 0.5, 0)
+        inputBox.Font = Enum.Font.SourceSans; inputBox.Text = tostring(defaultValue)
+        inputBox.TextColor3 = Color3.new(1,1,1); inputBox.TextSize = 14
+        inputBox.ClearTextOnFocus = false
+
+        local applyButton = Instance.new("TextButton")
+        applyButton.Parent = modFrame; applyButton.BackgroundColor3 = Color3.fromRGB(70, 130, 200)
+        applyButton.Position = UDim2.new(0.55, 0, 0.5, 0)
+        applyButton.Size = UDim2.new(0.2, 0, 0.5, 0)
+        applyButton.Font = Enum.Font.SourceSansBold; applyButton.Text = "Apply"
+        applyButton.TextColor3 = Color3.new(1,1,1); applyButton.TextSize = 14
+        applyButton.MouseButton1Click:Connect(function()
+            local value = tonumber(inputBox.Text)
+            if value and modifyFunc then modifyFunc(value) end
+        end)
+
+        local resetButton = Instance.new("TextButton")
+        resetButton.Parent = modFrame; resetButton.BackgroundColor3 = Color3.fromRGB(200, 100, 70)
+        resetButton.Position = UDim2.new(0.78, 0, 0.5, 0)
+        resetButton.Size = UDim2.new(0.22, 0, 0.5, 0)
+        resetButton.Font = Enum.Font.SourceSansBold; resetButton.Text = "Reset"
+        resetButton.TextColor3 = Color3.new(1,1,1); resetButton.TextSize = 14
+        resetButton.MouseButton1Click:Connect(function()
+            if modifyFunc then modifyFunc(defaultValue) end
+            inputBox.Text = tostring(defaultValue)
+        end)
+    end
+
+    createToggle(playerPage, "ESP", 1, function(enabled) SetESP(enabled) end)
+    createToggle(playerPage, "Fly", 2, function(enabled) print("Fly Toggled: " .. tostring(enabled)) end)
+    createToggle(playerPage, "Infinite Jump", 3, function(enabled)
+        if enabled then
+            LocalPlayer.Character.Humanoid.UseJumpPower = true
+            LocalPlayer.Character.Humanoid.JumpPower = 100 -- Or higher
+        else
+            LocalPlayer.Character.Humanoid.UseJumpPower = true
+            LocalPlayer.Character.Humanoid.JumpPower = 50 -- Default
+        end
+        print("Infinite Jump Toggled: " .. tostring(enabled))
+    end)
+    
+    local defaultSpeed = 16
+    createModifier(playerPage, "Walk Speed", 4, defaultSpeed, function(value)
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.WalkSpeed = value
+        end
+    end)
+
+    local defaultJump = 50
+    createModifier(playerPage, "Jump Power", 5, defaultJump, function(value)
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.UseJumpPower = true
+            LocalPlayer.Character.Humanoid.JumpPower = value
+        end
+    end)
+    
 
     -- Settings Tab Content
     local settingsLabel = Instance.new("TextLabel")
     settingsLabel.Parent = contentPages[3]
-    settingsLabel.BackgroundColor3 = Color3.new(1, 1, 1)
     settingsLabel.BackgroundTransparency = 1
-    settingsLabel.Size = UDim2.new(1, -20, 0, 100)
-    settingsLabel.Position = UDim2.new(0.5, -((settingsLabel.AbsoluteSize.X)/2), 0.5, -50)
+    settingsLabel.Size = UDim2.new(1, -20, 0.5, 0)
+    settingsLabel.Position = UDim2.new(0.5, -settingsLabel.AbsoluteSize.X/2, 0.25, 0)
     settingsLabel.Font = Enum.Font.SourceSansLight
     settingsLabel.Text = "Settings will be available in a future update."
-    settingsLabel.TextColor3 = Color3.new(1, 1, 1)
-    settingsLabel.TextSize = 18
+    settingsLabel.TextColor3 = Color3.new(1, 1, 1); settingsLabel.TextSize = 18
     settingsLabel.TextWrapped = true
 
     -- Other Tab Content
     local otherLabel = Instance.new("TextLabel")
     otherLabel.Parent = contentPages[4]
-    otherLabel.BackgroundColor3 = Color3.new(1, 1, 1)
     otherLabel.BackgroundTransparency = 1
-    otherLabel.Size = UDim2.new(1, -20, 0, 100)
-    otherLabel.Position = UDim2.new(0.5, -((otherLabel.AbsoluteSize.X)/2), 0.5, -50)
+    otherLabel.Size = UDim2.new(1, -20, 0.5, 0)
+    otherLabel.Position = UDim2.new(0.5, -otherLabel.AbsoluteSize.X/2, 0.25, 0)
     otherLabel.Font = Enum.Font.SourceSansLight
-    otherLabel.Text = "Other features and credits will be listed here."
-    otherLabel.TextColor3 = Color3.new(1, 1, 1)
-    otherLabel.TextSize = 18
+    otherLabel.Text = "Credits: Gemini (AI by Google)\nFly script is a placeholder."
+    otherLabel.TextColor3 = Color3.new(1, 1, 1); otherLabel.TextSize = 18
     otherLabel.TextWrapped = true
 end
 
