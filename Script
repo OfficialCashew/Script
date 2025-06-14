@@ -1,10 +1,9 @@
---[[ Cashew's Script • GUI with Emoji Toggles and Settings ]]--
-
 -- Services
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local InsertService = game:GetService("InsertService")
 local MarketplaceService = game:GetService("MarketplaceService")
+local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
 
@@ -64,7 +63,7 @@ title.TextXAlignment = Enum.TextXAlignment.Center
 -- Drag logic
 local dragging = false
 local dragStart, startPos
-local dragEnabled = true -- new setting to toggle dragging
+local dragEnabled = true
 
 dragBar.InputBegan:Connect(function(input)
 	if dragEnabled and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
@@ -87,8 +86,8 @@ UserInputService.InputEnded:Connect(function(input)
 	end
 end)
 
--- Tabs
-local tabNames = {"Main", "Player", "Tools", "Settings"}
+-- Tabs (Removed "Tools" tab)
+local tabNames = {"Main", "Player", "Settings"}
 local tabButtons = {}
 local tabFrames = {}
 
@@ -126,13 +125,72 @@ toggleBtn.MouseButton1Click:Connect(function()
 	toggleBtn.Text = main.Visible and "Close Cashew's Script" or "Open Cashew's Script"
 end)
 
--- === Player Tab Enhancements ===
+-- Prevent camera movement while interacting with GUI:
+-- When mouse is over any GUI element, disable camera control temporarily
+
+local function isMouseOverGui()
+	local mousePos = UserInputService:GetMouseLocation()
+	-- Convert to GUI coordinates (ScreenGui is full screen, so mousePos matches)
+	local absPos = Vector2.new(mousePos.X, mousePos.Y)
+	for _, frame in pairs(main:GetDescendants()) do
+		if frame:IsA("GuiObject") and frame.Visible then
+			local absFramePos = frame.AbsolutePosition
+			local absFrameSize = frame.AbsoluteSize
+			if absPos.X >= absFramePos.X and absPos.X <= absFramePos.X + absFrameSize.X and
+			   absPos.Y >= absFramePos.Y and absPos.Y <= absFramePos.Y + absFrameSize.Y then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+-- Disable camera control when mouse over GUI
+local camera = workspace.CurrentCamera
+
+local userInputConnections = {}
+
+local function updateCameraControl()
+	if isMouseOverGui() and main.Visible then
+		camera.CameraType = Enum.CameraType.Scriptable
+	else
+		camera.CameraType = Enum.CameraType.Custom
+	end
+end
+
+-- RunService.Heartbeat to update camera control continuously
+RunService.Heartbeat:Connect(updateCameraControl)
+
+-- === Main Tab ===
+local mainTab = tabFrames["Main"]
+
+-- Username label
+local usernameLabel = Instance.new("TextLabel", mainTab)
+usernameLabel.Size = UDim2.new(1, 0, 0, 30)
+usernameLabel.Position = UDim2.new(0, 0, 0, 20)
+usernameLabel.BackgroundTransparency = 1
+usernameLabel.Text = player.Name
+usernameLabel.TextColor3 = Color3.new(1, 1, 1)
+usernameLabel.Font = Enum.Font.GothamBold
+usernameLabel.TextSize = 24
+usernameLabel.TextXAlignment = Enum.TextXAlignment.Center
+
+-- Avatar Image
+local avatarImage = Instance.new("ImageLabel", mainTab)
+avatarImage.Size = UDim2.new(0, 150, 0, 150)
+avatarImage.Position = UDim2.new(0.5, -75, 0, 70)
+avatarImage.BackgroundTransparency = 1
+avatarImage.Image = "https://www.roblox.com/headshot-thumbnail/image?userId="..player.UserId.."&width=420&height=420&format=png"
+avatarImage.ScaleType = Enum.ScaleType.Fit
+avatarImage.ImageColor3 = Color3.new(1, 1, 1)
+
+-- === Player Tab ===
 local function getHumanoid()
 	local char = player.Character or player.CharacterAdded:Wait()
 	return char:WaitForChild("Humanoid"), char
 end
 
--- Slider Helper
+-- Slider Helper function (unchanged, reusing from before)
 local function createSlider(parent, labelText, minVal, maxVal, defaultVal, onChange, yPos)
 	local label = Instance.new("TextLabel", parent)
 	label.Position = UDim2.new(0, 10, 0, yPos)
@@ -254,49 +312,9 @@ invisBtn.MouseButton1Click:Connect(function()
 	end
 end)
 
--- === Tools Tab ===
-local toolsTab = tabFrames["Tools"]
-
-local inputBox = Instance.new("TextBox", toolsTab)
-inputBox.Size = UDim2.new(0, 180, 0, 30)
-inputBox.Position = UDim2.new(0, 10, 0, 10)
-inputBox.PlaceholderText = "Enter Tool ID"
-inputBox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-inputBox.TextColor3 = Color3.new(1, 1, 1)
-inputBox.Font = Enum.Font.Gotham
-inputBox.TextSize = 14
-Instance.new("UICorner", inputBox)
-
-local toolBtn = Instance.new("TextButton", toolsTab)
-toolBtn.Position = UDim2.new(0, 10, 0, 50)
-toolBtn.Size = UDim2.new(0, 180, 0, 35)
-toolBtn.Text = "Spawn Tool"
-toolBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-toolBtn.TextColor3 = Color3.new(1, 1, 1)
-toolBtn.Font = Enum.Font.Gotham
-toolBtn.TextSize = 14
-Instance.new("UICorner", toolBtn)
-toolBtn.MouseButton1Click:Connect(function()
-	local id = tonumber(inputBox.Text)
-	if id then
-		local model
-		local success, err = pcall(function()
-			model = InsertService:LoadAsset(id)
-		end)
-		if success and model then
-			local tool = model:FindFirstChildWhichIsA("Tool", true)
-			if tool then
-				tool.Parent = player.Backpack
-			end
-			model:Destroy()
-		end
-	end
-end)
-
 -- === Settings Tab ===
 local settingsTab = tabFrames["Settings"]
 
--- Helper to create toggle button with emoji
 local function createToggleButton(parent, text, initialState, posY, onToggle)
 	local btn = Instance.new("TextButton", parent)
 	btn.Position = UDim2.new(0, 10, 0, posY)
@@ -317,12 +335,10 @@ local function createToggleButton(parent, text, initialState, posY, onToggle)
 	return btn
 end
 
--- Draggable toggle
 local draggableToggle = createToggleButton(settingsTab, "Enable Dragging", true, 10, function(state)
 	dragEnabled = state
 end)
 
--- Reset GUI Position Button
 local resetBtn = Instance.new("TextButton", settingsTab)
 resetBtn.Position = UDim2.new(0, 10, 0, 50)
 resetBtn.Size = UDim2.new(0, 200, 0, 30)
@@ -337,7 +353,6 @@ resetBtn.MouseButton1Click:Connect(function()
 	main.Position = UDim2.new(0.5, -250, 0.5, -160)
 end)
 
--- Dark Mode toggle
 local darkMode = true
 local function updateTheme(dark)
 	if dark then
@@ -390,5 +405,4 @@ local darkModeToggle = createToggleButton(settingsTab, "Dark Mode", true, 90, fu
 	updateTheme(darkMode)
 end)
 
--- Initialize theme on load
 updateTheme(darkMode)
