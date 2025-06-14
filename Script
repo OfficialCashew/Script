@@ -1,266 +1,297 @@
 -- Services
 local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
 local InsertService = game:GetService("InsertService")
-local TweenService = game:GetService("TweenService")
-local MarketplaceService = game:GetService("MarketplaceService")
+local UserInputService = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 
--- Shared settings for saving position
-if not shared.CashewSettings then shared.CashewSettings = {} end
-
--- UI Setup
+-- ScreenGui
 local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
 gui.Name = "CashewGUI"
 gui.ResetOnSpawn = false
 
--- Blur Setup
-local blur = Instance.new("BlurEffect", workspace)
-blur.Size = 0
-blur.Enabled = false
+-- Toggle Button
+local toggleBtn = Instance.new("TextButton", gui)
+toggleBtn.Size = UDim2.new(0, 100, 0, 30)
+toggleBtn.Position = UDim2.new(0, 10, 0, 10)
+toggleBtn.Text = "Toggle GUI"
+toggleBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+toggleBtn.TextColor3 = Color3.new(1, 1, 1)
+toggleBtn.Font = Enum.Font.Gotham
+toggleBtn.TextSize = 14
+Instance.new("UICorner", toggleBtn)
 
--- Icon Button
-local iconBtn = Instance.new("ImageButton", gui)
-iconBtn.Size = UDim2.new(0, 50,0,50)
-iconBtn.Position = UDim2.new(0,10,0,10)
-iconBtn.Image = "rbxassetid://<YOUR_ICON_ASSET_ID>"
-Instance.new("UICorner", iconBtn)
-Instance.new("UIStroke", iconBtn).Thickness = 2
+-- Main Frame
+local mainFrame = Instance.new("Frame", gui)
+mainFrame.Size = UDim2.new(0, 400, 0, 280)
+mainFrame.Position = UDim2.new(0.5, -200, 0.5, -140)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+mainFrame.Visible = false
+mainFrame.Active = true
+mainFrame.Draggable = false
+Instance.new("UICorner", mainFrame)
 
--- Main Window
-local main = Instance.new("Frame", gui)
-main.Size = UDim2.new(0,400,0,500)
-main.Position = shared.CashewSettings.LastPos or UDim2.new(0.5,-200,0.5,-250)
-main.BackgroundColor3 = Color3.fromRGB(30,30,30)
-Instance.new("UICorner", main)
-local stroke = Instance.new("UIStroke", main)
-stroke.Color = Color3.new(0.2,0.2,0.2); stroke.Thickness = 2
+-- Drag Bar
+local dragBar = Instance.new("Frame", mainFrame)
+dragBar.Size = UDim2.new(1, 0, 0, 25)
+dragBar.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+dragBar.Active = true
+dragBar.Selectable = true
+Instance.new("UICorner", dragBar)
 
--- Save pos on drag end
-main.Active = true
-main.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-		main.Draggable = true
-	end
-end)
-main.InputEnded:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-		main.Draggable = false
-		shared.CashewSettings.LastPos = main.Position
-	end
-end)
-
--- Blur effect toggle
-local function setBlur(on)
-	TweenService:Create(blur, TweenInfo.new(0.5), {Size = on and 24 or 0}):Play()
-	blur.Enabled = on
-end
-
--- Icon Toggle
-local guiVisible = false
-iconBtn.MouseButton1Click:Connect(function()
-	guiVisible = not guiVisible
-	main.Visible = guiVisible
-	setBlur(guiVisible)
-	UserInputService.MouseBehavior = guiVisible and Enum.MouseBehavior.Default or Enum.MouseBehavior.LockCenter
-end)
-
--- Auto open on join
-main.Visible = true; guiVisible = true; setBlur(true)
-
--- Title bar
-local titleBar = Instance.new("Frame", main)
-titleBar.Size = UDim2.new(1,0,0,30)
-titleBar.BackgroundColor3 = Color3.fromRGB(20,20,20)
-titleBar.Position = UDim2.new(0,0,0,0)
-Instance.new("UICorner", titleBar)
-
-local title = Instance.new("TextLabel", titleBar)
-title.Size = UDim2.new(1,0,1,0)
+local title = Instance.new("TextLabel", dragBar)
+title.Size = UDim2.new(1, 0, 1, 0)
 title.BackgroundTransparency = 1
+title.Text = "Cashew's Script - " .. game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name
+title.TextColor3 = Color3.new(1, 1, 1)
 title.Font = Enum.Font.GothamBold
-title.Text = "Cashew's GUI • " .. pcall(function() return MarketplaceService:GetProductInfo(game.PlaceId).Name end) and tostring(game.PlaceId)
-title.TextColor3 = Color3.new(1,1,1)
+title.TextSize = 14
 
--- Tabs setup
-local tabs = {"Main","Player","Tools","Troll"}
-local buttons, panels = {}, {}
+-- Tabs
+local tabList = Instance.new("Frame", mainFrame)
+tabList.Size = UDim2.new(0, 100, 1, -25)
+tabList.Position = UDim2.new(0, 0, 0, 25)
+tabList.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 
-local function createTabBtn(name,index)
-	local btn = Instance.new("TextButton",main)
-	btn.Size = UDim2.new(0,100,0,40)
-	btn.Position = UDim2.new(0,0,0,30+(index-1)*42)
-	btn.Text = name
-	btn.Font = Enum.Font.GothamBold; btn.TextColor3 = Color3.new(1,1,1)
-	btn.BackgroundColor3 = Color3.fromRGB(40,40,40)
-	Instance.new("UICorner",btn)
-	local panel = Instance.new("Frame",main)
-	panel.BackgroundTransparency = 1
-	panel.Position = UDim2.new(0,100,0,30)
-	panel.Size = UDim2.new(1,-100,1,-30)
-	panel.Visible = index == 1
-	buttons[name]=btn; panels[name]=panel
-	btn.MouseButton1Click:Connect(function()
-		for _,p in pairs(panels) do p.Visible=false end
-		panel.Visible = true
-	end)
-	return panel
+local contentFrame = Instance.new("Frame", mainFrame)
+contentFrame.Size = UDim2.new(1, -100, 1, -25)
+contentFrame.Position = UDim2.new(0, 100, 0, 25)
+contentFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+
+local tabNames = {"Main", "Player", "Tools", "Troll"}
+local tabFrames = {}
+
+for _, name in ipairs(tabNames) do
+    local btn = Instance.new("TextButton", tabList)
+    btn.Size = UDim2.new(1, 0, 0, 30)
+    btn.Position = UDim2.new(0, 0, 0, 30 * (_ - 1))
+    btn.Text = name
+    btn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.Font = Enum.Font.Gotham
+    btn.TextSize = 14
+    Instance.new("UICorner", btn)
+
+    local frame = Instance.new("Frame", contentFrame)
+    frame.Size = UDim2.new(1, 0, 1, 0)
+    frame.BackgroundTransparency = 1
+    frame.Visible = name == "Main"
+    tabFrames[name] = frame
+
+    btn.MouseButton1Click:Connect(function()
+        for _, f in pairs(tabFrames) do f.Visible = false end
+        frame.Visible = true
+    end)
 end
 
-local mainPanel = createTabBtn("Main",1)
-local playerPanel = createTabBtn("Player",2)
-local toolsPanel = createTabBtn("Tools",3)
-local trollPanel = createTabBtn("Troll",4)
+-- Player Tab Features
+local playerTab = tabFrames["Player"]
 
--- Player tab UI
-local function addToggle(panel, posY, text, onChange)
-	local on = false
-	local btn = Instance.new("TextButton",panel)
-	btn.Position=UDim2.new(0,10,0,posY)
-	btn.Size=UDim2.new(0,200,0,30)
-	btn.Text = "❌ "..text
-	btn.Font=Enum.Font.Gotham; btn.TextColor3=Color3.new(1,1,1)
-	btn.BackgroundColor3 = Color3.fromRGB(50,50,50)
-	Instance.new("UICorner",btn)
-	btn.MouseButton1Click:Connect(function()
-		on = not on
-		btn.Text = (on and "✅ " or "❌ ") .. text
-		onChange(on)
-	end)
-	return btn
+-- Speed & Jump sliders
+local function createSlider(text, min, max, default, onChange, posY)
+    local label = Instance.new("TextLabel", playerTab)
+    label.Position = UDim2.new(0, 10, 0, posY)
+    label.Size = UDim2.new(0, 150, 0, 20)
+    label.Text = text .. ": " .. tostring(default)
+    label.TextColor3 = Color3.new(1, 1, 1)
+    label.BackgroundTransparency = 1
+    label.Font = Enum.Font.Gotham
+    label.TextSize = 14
+
+    local slider = Instance.new("TextButton", playerTab)
+    slider.Position = UDim2.new(0, 160, 0, posY)
+    slider.Size = UDim2.new(0, 180, 0, 20)
+    slider.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    slider.Text = ""
+    slider.AutoButtonColor = false
+    local fill = Instance.new("Frame", slider)
+    fill.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+    fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
+
+    local dot = Instance.new("Frame", slider)
+    dot.AnchorPoint = Vector2.new(0.5, 0.5)
+    dot.Position = UDim2.new(fill.Size.X.Scale, 0, 0.5, 0)
+    dot.Size = UDim2.new(0, 10, 0, 10)
+    dot.BackgroundColor3 = Color3.new(1, 1, 1)
+    dot.ZIndex = 2
+    Instance.new("UICorner", dot)
+
+    local dragging = false
+    local function update(input)
+        local rel = input.Position.X - slider.AbsolutePosition.X
+        local pct = math.clamp(rel / slider.AbsoluteSize.X, 0, 1)
+        local value = math.floor(min + (max - min) * pct)
+        fill.Size = UDim2.new(pct, 0, 1, 0)
+        dot.Position = UDim2.new(pct, 0, 0.5, 0)
+        label.Text = text .. ": " .. tostring(value)
+        onChange(value)
+    end
+
+    slider.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+        end
+    end)
+    slider.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            update(input)
+        end
+    end)
 end
 
-local function addSlider(panel, y, text, min,max,default,callback)
-	local label=Instance.new("TextLabel",panel)
-	label.Position=UDim2.new(0,10,0,y)
-	label.Size=UDim2.new(0,200,0,20)
-	label.Text = text..": "..default
-	label.Font=Enum.Font.Gotham; label.TextColor3=Color3.new(1,1,1)
-	label.BackgroundTransparency=1
-	local slider = Instance.new("Frame",panel)
-	slider.Position=UDim2.new(0,220,0,y)
-	slider.Size=UDim2.new(0,150,0,10)
-	slider.BackgroundColor3=Color3.fromRGB(80,80,80)
-	Instance.new("UICorner",slider)
-	local knob = Instance.new("Frame",slider)
-	knob.Size=UDim2.new((default-min)/(max-min),0,1,0)
-	knob.BackgroundColor3=Color3.fromRGB(0,170,255)
-	Instance.new("UICorner",knob)
-	knob.Active=true; knob.Selectable=true
-	local dragging=false
-	local function update(x)
-		local pct=math.clamp((x-slider.AbsolutePosition.X)/slider.AbsoluteSize.X,0,1)
-		knob.Size=UDim2.new(pct,0,1,0)
-		knob.Position=UDim2.new(pct,0,0,0)
-		local value=math.floor(min+(max-min)*pct)
-		label.Text = text..": "..value
-		callback(value)
-	end
-	knob.InputBegan:Connect(function(i)
-		if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dragging=true end
-	end)
-	UserInputService.InputEnded:Connect(function(i) if dragging then dragging=false end end)
-	UserInputService.InputChanged:Connect(function(i)
-		if dragging then update(i.Position.X) end
-	end)
+createSlider("WalkSpeed", 16, 100, 16, function(v)
+    if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+        player.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = v
+    end
+end, 10)
+
+createSlider("JumpPower", 50, 200, 50, function(v)
+    if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+        player.Character:FindFirstChildOfClass("Humanoid").JumpPower = v
+    end
+end, 40)
+
+-- Toggle Buttons
+local toggles = {
+    {name = "Infinite Jump", func = function(state)
+        if state then
+            _G.InfJump = true
+            game:GetService("UserInputService").JumpRequest:Connect(function()
+                if _G.InfJump and player.Character then
+                    player.Character:FindFirstChildOfClass("Humanoid"):ChangeState("Jumping")
+                end
+            end)
+        else
+            _G.InfJump = false
+        end
+    end},
+    {name = "Invisibility", func = function(state)
+        if player.Character then
+            for _, v in pairs(player.Character:GetDescendants()) do
+                if v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" then
+                    v.Transparency = state and 1 or 0
+                end
+            end
+        end
+    end}
+}
+
+for i, t in pairs(toggles) do
+    local btn = Instance.new("TextButton", playerTab)
+    btn.Position = UDim2.new(0, 10, 0, 70 + (i - 1) * 30)
+    btn.Size = UDim2.new(0, 200, 0, 25)
+    btn.Text = t.name .. " ❌"
+    btn.BackgroundColor3 = Color3.fromRGB(90, 90, 90)
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    Instance.new("UICorner", btn)
+
+    local on = false
+    btn.MouseButton1Click:Connect(function()
+        on = not on
+        btn.Text = t.name .. (on and " ✅" or " ❌")
+        t.func(on)
+    end)
 end
-
--- Speed and Jump sliders
-addSlider(playerPanel,10,"WalkSpeed",16,200,16,function(v)
-	local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-	if hum then hum.WalkSpeed=v end
-end)
-addSlider(playerPanel,60,"JumpPower",50,300,50,function(v)
-	local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-	if hum then hum.JumpPower=v end
-end)
-
--- Toggle features
-addToggle(playerPanel, 110, "Infinite Jump", function(on)
-	_G.InfJump = on
-end)
-
-UserInputService.JumpRequest:Connect(function()
-	if _G.InfJump and player.Character then
-		player.Character:FindFirstChildOfClass("Humanoid"):ChangeState("Jumping")
-	end
-end)
-
-addToggle(playerPanel, 150, "Invisibility", function(on)
-	for _,part in ipairs(player.Character and player.Character:GetDescendants() or {}) do
-		if part:IsA("BasePart") or part:IsA("Decal") then
-			part.Transparency = on and 1 or 0
-		end
-	end
-end)
-
--- Fly toggle (simple float)
-local flying = false
-local flySpeed = 50
-addToggle(playerPanel, 190, "Fly", function(on)
-	flying = on
-	if on then
-		local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-		if hrp then
-			hrp.Anchored = true
-			coroutine.wrap(function()
-				while flying and hrp do
-					local cam = workspace.CurrentCamera
-					hrp.CFrame = hrp.CFrame:Lerp(cam.CFrame, flySpeed/1000)
-					wait()
-				end
-				if hrp then hrp.Anchored = false end
-			end)()
-		end
-	end
-end)
 
 -- Tools Tab
-local toolsID = Instance.new("TextBox",toolsPanel)
-toolsID.Position=UDim2.new(0,10,0,10); toolsID.Size=UDim2.new(0,150,0,25)
-toolsID.PlaceholderText="Tool ID"
-toolsID.BackgroundColor3 = Color3.fromRGB(255,255,255)
-toolsID.TextColor3 = Color3.new(0,0,0)
+local toolsTab = tabFrames["Tools"]
 
-local spawnBtn = Instance.new("TextButton",toolsPanel)
-spawnBtn.Position=UDim2.new(0,170,0,10); spawnBtn.Size=UDim2.new(0,100,0,25)
-spawnBtn.Text="Spawn Tool"; spawnBtn.BackgroundColor3=Color3.fromRGB(80,80,80)
-spawnBtn.TextColor3=Color3.new(1,1,1)
-Instance.new("UICorner",spawnBtn)
-spawnBtn.MouseButton1Click:Connect(function()
-	local id=tonumber(toolsID.Text)
-	if id then
-		local ok,model=pcall(function() return InsertService:LoadAsset(id) end)
-		if ok and model then
-			local function findTool(o)
-				if o:IsA("Tool") then return o end
-				for _,c in ipairs(o:GetChildren()) do
-					local t=findTool(c); if t then return t end
-				end
-			end
-			local tool=findTool(model)
-			if tool then tool.Parent = player.Backpack end
-			model:Destroy()
-		end
-	end
+local inputBox = Instance.new("TextBox", toolsTab)
+inputBox.Position = UDim2.new(0, 10, 0, 10)
+inputBox.Size = UDim2.new(0, 150, 0, 25)
+inputBox.PlaceholderText = "Tool ID"
+inputBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+inputBox.TextColor3 = Color3.new(0, 0, 0)
+
+local toolBtn = Instance.new("TextButton", toolsTab)
+toolBtn.Position = UDim2.new(0, 170, 0, 10)
+toolBtn.Size = UDim2.new(0, 100, 0, 25)
+toolBtn.Text = "Spawn Tool"
+toolBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+toolBtn.TextColor3 = Color3.new(1, 1, 1)
+
+toolBtn.MouseButton1Click:Connect(function()
+    local id = tonumber(inputBox.Text)
+    if id then
+        local success, model = pcall(function()
+            return InsertService:LoadAsset(id)
+        end)
+        if success and model then
+            local function findTool(obj)
+                if obj:IsA("Tool") then return obj end
+                for _, child in ipairs(obj:GetChildren()) do
+                    local t = findTool(child)
+                    if t then return t end
+                end
+            end
+            local tool = findTool(model)
+            if tool then
+                tool.Parent = player.Backpack
+            end
+            model:Destroy()
+        end
+    end
 end)
 
 -- Troll Tab
-local jerkBtn = Instance.new("TextButton",t trollPanel)
-jerkBtn.Position=UDim2.new(0,10,0,10); jerkBtn.Size=UDim2.new(0,180,0,35)
-jerkBtn.Text="⚡ Jerk"; jerkBtn.BackgroundColor3=Color3.fromRGB(60,60,60); jerkBtn.TextColor3=Color3.new(1,1,1)
+local trollTab = tabFrames["Troll"]
+
+local jerkBtn = Instance.new("TextButton", trollTab)
+jerkBtn.Position = UDim2.new(0, 10, 0, 10)
+jerkBtn.Size = UDim2.new(0, 180, 0, 35)
+jerkBtn.Text = "⚡ Jerk"
+jerkBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+jerkBtn.TextColor3 = Color3.new(1, 1, 1)
+jerkBtn.Font = Enum.Font.Gotham
+jerkBtn.TextSize = 14
 Instance.new("UICorner", jerkBtn)
 
 local function runFromURL(url)
-	local s,r=pcall(function() return game:HttpGet(url) end)
-	if s then loadstring(r)() else warn("Error loading troll script:",r) end
+    local s, r = pcall(function()
+        return game:HttpGet(url)
+    end)
+    if s then
+        loadstring(r)()
+    else
+        warn("Failed to load troll script:", r)
+    end
 end
 
 jerkBtn.MouseButton1Click:Connect(function()
-	local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-	if hum.RigType == Enum.HumanoidRigType.R6 then
-		runFromURL("https://pastefy.app/wa3v2Vgm/raw")
-	else
-		runFromURL("https://pastefy.app/YZoglOyJ/raw")
-	end
+    local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+    if hum then
+        if hum.RigType == Enum.HumanoidRigType.R6 then
+            runFromURL("https://pastefy.app/wa3v2Vgm/raw")
+        else
+            runFromURL("https://pastefy.app/YZoglOyJ/raw")
+        end
+    end
+end)
+
+-- Toggle GUI logic
+toggleBtn.MouseButton1Click:Connect(function()
+    mainFrame.Visible = not mainFrame.Visible
+end)
+
+-- Drag logic
+local dragging, offset
+dragBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        offset = Vector2.new(input.Position.X, input.Position.Y) - mainFrame.AbsolutePosition
+    end
+end)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        mainFrame.Position = UDim2.new(0, input.Position.X - offset.X, 0, input.Position.Y - offset.Y)
+    end
 end)
