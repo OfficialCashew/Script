@@ -3,7 +3,6 @@
 -- Services
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
-local InsertService = game:GetService("InsertService")
 local MarketplaceService = game:GetService("MarketplaceService")
 
 local player = Players.LocalPlayer
@@ -38,8 +37,8 @@ Instance.new("UICorner", toggleBtn)
 
 -- Main Frame
 local main = Instance.new("Frame", gui)
-main.Size = UDim2.new(0, 500, 0, 320)
-main.Position = UDim2.new(0.5, -250, 0.5, -160)
+main.Size = UDim2.new(0, 520, 0, 360) -- increased size to fit more content
+main.Position = UDim2.new(0.5, -260, 0.5, -180)
 main.Visible = false
 main.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 main.BorderSizePixel = 0
@@ -87,7 +86,7 @@ UserInputService.InputEnded:Connect(function(input)
 end)
 
 -- Tabs
-local tabNames = {"Main", "Player", "Tools"}
+local tabNames = {"Main", "Player", "Settings"}
 local tabButtons = {}
 local tabFrames = {}
 
@@ -105,7 +104,7 @@ for i, name in ipairs(tabNames) do
 
 	local frame = Instance.new("Frame", main)
 	frame.Position = UDim2.new(0, 100, 0, 30)
-	frame.Size = UDim2.new(0, 400, 0, 290)
+	frame.Size = UDim2.new(0, 420, 0, 330)
 	frame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 	frame.Visible = (i == 1)
 	Instance.new("UICorner", frame)
@@ -123,6 +122,12 @@ end
 toggleBtn.MouseButton1Click:Connect(function()
 	main.Visible = not main.Visible
 	toggleBtn.Text = main.Visible and "Close Cashew's Script" or "Open Cashew's Script"
+	-- Lock camera when GUI visible
+	if main.Visible then
+		UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+	else
+		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+	end
 end)
 
 -- === Player Tab Enhancements ===
@@ -131,11 +136,13 @@ local function getHumanoid()
 	return char:WaitForChild("Humanoid"), char
 end
 
+local playerTab = tabFrames["Player"]
+
 -- Slider Helper
 local function createSlider(parent, labelText, minVal, maxVal, defaultVal, onChange, yPos)
 	local label = Instance.new("TextLabel", parent)
 	label.Position = UDim2.new(0, 10, 0, yPos)
-	label.Size = UDim2.new(0, 150, 0, 25)
+	label.Size = UDim2.new(0, 180, 0, 25)
 	label.Text = labelText .. ": " .. tostring(defaultVal)
 	label.TextColor3 = Color3.new(1,1,1)
 	label.BackgroundTransparency = 1
@@ -145,13 +152,13 @@ local function createSlider(parent, labelText, minVal, maxVal, defaultVal, onCha
 
 	local sliderBack = Instance.new("Frame", parent)
 	sliderBack.Position = UDim2.new(0, 10, 0, yPos + 30)
-	sliderBack.Size = UDim2.new(0, 180, 0, 6)
+	sliderBack.Size = UDim2.new(0, 200, 0, 8)
 	sliderBack.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 	Instance.new("UICorner", sliderBack)
 
 	local knob = Instance.new("Frame", sliderBack)
-	knob.Size = UDim2.new(0, 14, 0, 14)
-	knob.Position = UDim2.new((defaultVal - minVal) / (maxVal - minVal), -7, 0.5, -7)
+	knob.Size = UDim2.new(0, 16, 0, 16)
+	knob.Position = UDim2.new((defaultVal - minVal) / (maxVal - minVal), -8, 0.5, -8)
 	knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
 	knob.ZIndex = 2
@@ -171,16 +178,14 @@ local function createSlider(parent, labelText, minVal, maxVal, defaultVal, onCha
 		if dragging and input.Position then
 			local relX = math.clamp((input.Position.X - sliderBack.AbsolutePosition.X) / sliderBack.AbsoluteSize.X, 0, 1)
 			local value = math.floor(minVal + (maxVal - minVal) * relX)
-			knob.Position = UDim2.new(relX, -7, 0.5, -7)
+			knob.Position = UDim2.new(relX, -8, 0.5, -8)
 			label.Text = labelText .. ": " .. tostring(value)
 			onChange(value)
 		end
 	end)
 end
 
-local playerTab = tabFrames["Player"]
-
--- Speed slider
+-- WalkSpeed slider
 createSlider(playerTab, "WalkSpeed", 16, 200, 16, function(v)
 	local humanoid = getHumanoid()
 	humanoid.WalkSpeed = v
@@ -192,14 +197,19 @@ createSlider(playerTab, "JumpPower", 50, 300, 50, function(v)
 	humanoid.JumpPower = v
 end, 90)
 
+-- HipHeight slider
+createSlider(playerTab, "HipHeight", 0, 10, 2, function(v)
+	local humanoid = getHumanoid()
+	humanoid.HipHeight = v
+end, 170)
+
 -- === Toggle Buttons with Emoji ===
 
 -- Infinite Jump toggle
 local infJump = false
-
 local infJumpBtn = Instance.new("TextButton", playerTab)
-infJumpBtn.Position = UDim2.new(0, 10, 0, 170)
-infJumpBtn.Size = UDim2.new(0, 170, 0, 30)
+infJumpBtn.Position = UDim2.new(0, 10, 0, 230)
+infJumpBtn.Size = UDim2.new(0, 190, 0, 30)
 infJumpBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 infJumpBtn.TextColor3 = Color3.new(1, 1, 1)
 infJumpBtn.Font = Enum.Font.GothamBold
@@ -223,10 +233,9 @@ end)
 
 -- Invisibility toggle
 local invis = false
-
 local invisBtn = Instance.new("TextButton", playerTab)
-invisBtn.Position = UDim2.new(0, 10, 0, 210)
-invisBtn.Size = UDim2.new(0, 170, 0, 30)
+invisBtn.Position = UDim2.new(0, 10, 0, 270)
+invisBtn.Size = UDim2.new(0, 190, 0, 30)
 invisBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 invisBtn.TextColor3 = Color3.new(1, 1, 1)
 invisBtn.Font = Enum.Font.GothamBold
@@ -253,41 +262,146 @@ invisBtn.MouseButton1Click:Connect(function()
 	end
 end)
 
--- === Tools Tab ===
-local toolsTab = tabFrames["Tools"]
+-- NoClip toggle
+local noclip = false
+local noclipBtn = Instance.new("TextButton", playerTab)
+noclipBtn.Position = UDim2.new(0, 10, 0, 310)
+noclipBtn.Size = UDim2.new(0, 190, 0, 30)
+noclipBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+noclipBtn.TextColor3 = Color3.new(1, 1, 1)
+noclipBtn.Font = Enum.Font.GothamBold
+noclipBtn.TextSize = 14
+noclipBtn.Text = "❌ NoClip"
+Instance.new("UICorner", noclipBtn)
 
-local inputBox = Instance.new("TextBox", toolsTab)
-inputBox.Size = UDim2.new(0, 180, 0, 30)
-inputBox.Position = UDim2.new(0, 10, 0, 10)
-inputBox.PlaceholderText = "Enter Tool ID"
-inputBox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-inputBox.TextColor3 = Color3.new(1, 1, 1)
-inputBox.Font = Enum.Font.Gotham
-inputBox.TextSize = 14
-Instance.new("UICorner", inputBox)
+local RunService = game:GetService("RunService")
 
-local toolBtn = Instance.new("TextButton", toolsTab)
-toolBtn.Position = UDim2.new(0, 10, 0, 50)
-toolBtn.Size = UDim2.new(0, 180, 0, 35)
-toolBtn.Text = "Spawn Tool"
-toolBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-toolBtn.TextColor3 = Color3.new(1, 1, 1)
-toolBtn.Font = Enum.Font.Gotham
-toolBtn.TextSize = 14
-Instance.new("UICorner", toolBtn)
-toolBtn.MouseButton1Click:Connect(function()
-	local id = tonumber(inputBox.Text)
-	if id then
-		local model
-		local success, err = pcall(function()
-			model = InsertService:LoadAsset(id)
-		end)
-		if success and model then
-			local tool = model:FindFirstChildWhichIsA("Tool", true)
-			if tool then
-				tool.Parent = player.Backpack
+noclipBtn.MouseButton1Click:Connect(function()
+	noclip = not noclip
+	noclipBtn.Text = (noclip and "✅ " or "❌ ") .. "NoClip"
+end)
+
+RunService.Stepped:Connect(function()
+	if noclip then
+		local char = player.Character
+		if char then
+			for _, part in pairs(char:GetChildren()) do
+				if part:IsA("BasePart") and part.CanCollide then
+					part.CanCollide = false
+				end
 			end
-			model:Destroy()
 		end
+	end
+end)
+
+-- === Main Tab Enhancements ===
+local mainTab = tabFrames["Main"]
+
+-- Example: A welcome label + game info
+local welcomeLabel = Instance.new("TextLabel", mainTab)
+welcomeLabel.Size = UDim2.new(1, -20, 0, 40)
+welcomeLabel.Position = UDim2.new(0, 10, 0, 10)
+welcomeLabel.BackgroundTransparency = 1
+welcomeLabel.TextColor3 = Color3.new(1,1,1)
+welcomeLabel.Font = Enum.Font.GothamBold
+welcomeLabel.TextSize = 20
+welcomeLabel.Text = "Welcome to Cashew's Script for " .. gameName
+welcomeLabel.TextXAlignment = Enum.TextXAlignment.Center
+
+-- A simple button example: Reset Character
+local resetBtn = Instance.new("TextButton", mainTab)
+resetBtn.Position = UDim2.new(0, 10, 0, 60)
+resetBtn.Size = UDim2.new(0, 180, 0, 40)
+resetBtn.Text = "Reset Character"
+resetBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+resetBtn.TextColor3 = Color3.new(1,1,1)
+resetBtn.Font = Enum.Font.GothamBold
+resetBtn.TextSize = 16
+Instance.new("UICorner", resetBtn)
+
+resetBtn.MouseButton1Click:Connect(function()
+	local character = player.Character
+	if character then
+		character:BreakJoints()
+	end
+end)
+
+-- Add a label for Player Health and a refresh button
+local healthLabel = Instance.new("TextLabel", mainTab)
+healthLabel.Position = UDim2.new(0, 210, 0, 60)
+healthLabel.Size = UDim2.new(0, 200, 0, 40)
+healthLabel.BackgroundTransparency = 1
+healthLabel.TextColor3 = Color3.new(1,1,1)
+healthLabel.Font = Enum.Font.GothamBold
+healthLabel.TextSize = 16
+healthLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local function updateHealth()
+	local humanoid = getHumanoid()
+	if humanoid then
+		healthLabel.Text = ("Health: %d / %d"):format(humanoid.Health, humanoid.MaxHealth)
+	end
+end
+
+updateHealth()
+
+local refreshHealthBtn = Instance.new("TextButton", mainTab)
+refreshHealthBtn.Position = UDim2.new(0, 210, 0, 100)
+refreshHealthBtn.Size = UDim2.new(0, 100, 0, 30)
+refreshHealthBtn.Text = "Refresh Health"
+refreshHealthBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+refreshHealthBtn.TextColor3 = Color3.new(1,1,1)
+refreshHealthBtn.Font = Enum.Font.Gotham
+refreshHealthBtn.TextSize = 14
+Instance.new("UICorner", refreshHealthBtn)
+
+refreshHealthBtn.MouseButton1Click:Connect(updateHealth)
+
+-- === Settings Tab ===
+local settingsTab = tabFrames["Settings"]
+
+-- Dark Mode toggle example
+local darkMode = false
+local darkModeBtn = Instance.new("TextButton", settingsTab)
+darkModeBtn.Position = UDim2.new(0, 10, 0, 10)
+darkModeBtn.Size = UDim2.new(0, 200, 0, 40)
+darkModeBtn.Text = "❌ Dark Mode"
+darkModeBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+darkModeBtn.TextColor3 = Color3.new(1, 1, 1)
+darkModeBtn.Font = Enum.Font.GothamBold
+darkModeBtn.TextSize = 16
+Instance.new("UICorner", darkModeBtn)
+
+local function setDarkMode(enabled)
+	if enabled then
+		main.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+		for _, frame in pairs(tabFrames) do
+			frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+		end
+	else
+		main.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+		for _, frame in pairs(tabFrames) do
+			frame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+		end
+	end
+end
+
+darkModeBtn.MouseButton1Click:Connect(function()
+	darkMode = not darkMode
+	darkModeBtn.Text = (darkMode and "✅ " or "❌ ") .. "Dark Mode"
+	setDarkMode(darkMode)
+end)
+
+-- Mouse Lock Fix: Unlock camera if GUI closes by other means
+local function unlockCamera()
+	if UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter and not main.Visible then
+		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+	end
+end
+
+UserInputService.WindowFocusReleased:Connect(unlockCamera)
+UserInputService.InputBegan:Connect(function(input)
+	if input.KeyCode == Enum.KeyCode.Escape then
+		unlockCamera()
 	end
 end)
