@@ -1,542 +1,669 @@
--- Services
+--//============================================================================//
+--//                              IMPROVED SCRIPT                               //
+--//============================================================================//
+
+--// SERVICES
 local Players = game:GetService("Players")
 local InsertService = game:GetService("InsertService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local MarketplaceService = game:GetService("MarketplaceService")
+local Lighting = game:GetService("Lighting")
 
+--// LOCAL PLAYER
 local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
 
--- Helper to save settings in PlayerGui.Settings folder
-local settingsFolder = player:WaitForChild("PlayerGui"):FindFirstChild("CashewSettings")
-if not settingsFolder then
-    settingsFolder = Instance.new("Folder")
-    settingsFolder.Name = "CashewSettings"
-    settingsFolder.Parent = player.PlayerGui
-end
+--// SCRIPT STATE & CONSTANTS
+-- Using a state table is cleaner and safer than using _G
+local State = {
+    InfiniteJump = false,
+    ESP = false,
+    Fly = false,
+    Connections = {}, -- Store connections to disconnect them cleanly
+    FlyObjects = {}, -- Store fly-related physics objects
+}
 
-local function saveSetting(name, value)
-    local val = settingsFolder:FindFirstChild(name)
-    if not val then
-        val = Instance.new("BoolValue")
-        val.Name = name
-        val.Parent = settingsFolder
+local THEME = {
+    Main = Color3.fromRGB(30, 30, 30),
+    Secondary = Color3.fromRGB(40, 40, 40),
+    Tertiary = Color3.fromRGB(60, 60, 60),
+    Accent = Color3.fromRGB(0, 170, 255),
+    FontColor = Color3.new(1, 1, 1),
+    Font = Enum.Font.Gotham,
+    BoldFont = Enum.Font.GothamBold,
+}
+
+--// SETTINGS MANAGER
+-- A more robust settings system that handles different value types.
+local Settings = {}
+do
+    local settingsFolder = playerGui:FindFirstChild("CashewSettings")
+    if not settingsFolder then
+        settingsFolder = Instance.new("Folder")
+        settingsFolder.Name = "CashewSettings"
+        settingsFolder.Parent = playerGui
     end
-    val.Value = value
-end
 
-local function loadSetting(name, default)
-    local val = settingsFolder:FindFirstChild(name)
-    if val then
-        return val.Value
-    else
+    function Settings:Save(name, value)
+        local valueType = typeof(value)
+        local oldSetting = settingsFolder:FindFirstChild(name)
+        if oldSetting then
+            oldSetting:Destroy()
+        end
+
+        local valueInstance
+        if valueType == "boolean" then
+            valueInstance = Instance.new("BoolValue")
+        elseif valueType == "string" then
+            valueInstance = Instance.new("StringValue")
+        elseif valueType == "number" then
+            valueInstance = Instance.new("NumberValue")
+        else
+            warn("Settings:Save - Unsupported value type for:", name)
+            return
+        end
+
+        valueInstance.Name = name
+        valueInstance.Value = value
+        valueInstance.Parent = settingsFolder
+    end
+
+    function Settings:Load(name, default)
+        local setting = settingsFolder:FindFirstChild(name)
+        if setting then
+            return setting.Value
+        end
         return default
     end
 end
 
--- ScreenGui
-local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
-gui.Name = "CashewGUI"
-gui.ResetOnSpawn = false
-gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
--- Toggle Button
-local toggleBtn = Instance.new("TextButton", gui)
-toggleBtn.Size = UDim2.new(0, 100, 0, 30)
-toggleBtn.Position = UDim2.new(0, 10, 0, 10)
-toggleBtn.Text = "Toggle GUI"
-toggleBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-toggleBtn.TextColor3 = Color3.new(1, 1, 1)
-toggleBtn.Font = Enum.Font.Gotham
-toggleBtn.TextSize = 14
-Instance.new("UICorner", toggleBtn)
+--// UI CREATION
+-- Centralizing UI creation makes the main script cleaner and easier to read.
+local UI = {}
+function UI.Create(className, properties)
+    local element = Instance.new(className)
+    for prop, value in pairs(properties) do
+        element[prop] = value
+    end
+    if properties.CornerRadius then
+        Instance.new("UICorner", element).CornerRadius = UDim.new(0, properties.CornerRadius)
+    end
+    return element
+end
 
--- Main Frame
-local mainFrame = Instance.new("Frame", gui)
-mainFrame.Size = UDim2.new(0, 400, 0, 320)
-mainFrame.Position = UDim2.new(0.5, -200, 0.5, -160)
-mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-mainFrame.Visible = false
-mainFrame.Active = true
-mainFrame.Draggable = false
-Instance.new("UICorner", mainFrame)
-
--- UIStroke for mainFrame border
-local stroke = Instance.new("UIStroke", mainFrame)
-stroke.Color = Color3.fromRGB(0, 170, 255)
-stroke.Thickness = 2
+--// MAIN GUI
+local gui = UI.Create("ScreenGui", {
+    Name = "CashewGUI",
+    Parent = playerGui,
+    ResetOnSpawn = false,
+    ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+})
 
 -- Blur Effect Background
-local blur = Instance.new("BlurEffect")
-blur.Parent = game:GetService("Lighting")
-blur.Enabled = false
+local blur = UI.Create("BlurEffect", {
+    Parent = Lighting,
+    Enabled = false,
+    Size = 8,
+})
+
+-- Toggle Button
+local toggleBtn = UI.Create("TextButton", {
+    Parent = gui,
+    Size = UDim2.new(0, 100, 0, 30),
+    Position = UDim2.new(0, 10, 0, 10),
+    Text = "Toggle GUI",
+    BackgroundColor3 = THEME.Secondary,
+    TextColor3 = THEME.FontColor,
+    Font = THEME.Font,
+    TextSize = 14,
+    CornerRadius = 6,
+})
+
+-- Main Frame
+local mainFrame = UI.Create("Frame", {
+    Parent = gui,
+    Size = UDim2.new(0, 400, 0, 320),
+    Position = UDim2.new(0.5, -200, 0.5, -160),
+    BackgroundColor3 = THEME.Main,
+    Visible = false,
+    Active = true,
+    CornerRadius = 8,
+})
+
+local stroke = UI.Create("UIStroke", {
+    Parent = mainFrame,
+    Color = THEME.Accent,
+    Thickness = 2,
+})
 
 -- Drag Bar
-local dragBar = Instance.new("Frame", mainFrame)
-dragBar.Size = UDim2.new(1, 0, 0, 30)
-dragBar.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-dragBar.Active = true
-dragBar.Selectable = true
-Instance.new("UICorner", dragBar)
+local dragBar = UI.Create("Frame", {
+    Parent = mainFrame,
+    Size = UDim2.new(1, 0, 0, 30),
+    BackgroundColor3 = THEME.Secondary,
+    Active = true,
+    CornerRadius = 8,
+})
 
--- Icon in title
-local icon = Instance.new("ImageLabel", dragBar)
-icon.Size = UDim2.new(0, 24, 0, 24)
-icon.Position = UDim2.new(0, 5, 0, 3)
-icon.BackgroundTransparency = 1
-icon.Image = "rbxassetid://7072722261"  -- Example icon, replace with your own if you want
+local icon = UI.Create("ImageLabel", {
+    Parent = dragBar,
+    Size = UDim2.new(0, 24, 0, 24),
+    Position = UDim2.new(0, 5, 0, 3),
+    BackgroundTransparency = 1,
+    Image = "rbxassetid://7072722261",
+})
 
-local title = Instance.new("TextLabel", dragBar)
-title.Size = UDim2.new(1, -35, 1, 0)
-title.Position = UDim2.new(0, 35, 0, 0)
-title.BackgroundTransparency = 1
-title.Text = "Cashew's Script - " .. MarketplaceService:GetProductInfo(game.PlaceId).Name
-title.TextColor3 = Color3.new(1, 1, 1)
-title.Font = Enum.Font.GothamBold
-title.TextSize = 14
-title.TextXAlignment = Enum.TextXAlignment.Left
+-- Fetch game name safely
+local success, gameName = pcall(function()
+    return MarketplaceService:GetProductInfo(game.PlaceId).Name
+end)
+gameName = success and gameName or "Current Game"
 
--- Tabs
-local tabList = Instance.new("Frame", mainFrame)
-tabList.Size = UDim2.new(0, 100, 1, -30)
-tabList.Position = UDim2.new(0, 0, 0, 30)
-tabList.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+local title = UI.Create("TextLabel", {
+    Parent = dragBar,
+    Size = UDim2.new(1, -35, 1, 0),
+    Position = UDim2.new(0, 35, 0, 0),
+    BackgroundTransparency = 1,
+    Text = "Cashew's Script - " .. gameName,
+    TextColor3 = THEME.FontColor,
+    Font = THEME.BoldFont,
+    TextSize = 14,
+    TextXAlignment = Enum.TextXAlignment.Left,
+})
 
-local contentFrame = Instance.new("Frame", mainFrame)
-contentFrame.Size = UDim2.new(1, -100, 1, -30)
-contentFrame.Position = UDim2.new(0, 100, 0, 30)
-contentFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+--// TABS
+local tabList = UI.Create("Frame", {
+    Parent = mainFrame,
+    Size = UDim2.new(0, 100, 1, -30),
+    Position = UDim2.new(0, 0, 0, 30),
+    BackgroundColor3 = THEME.Secondary,
+})
+
+local contentFrame = UI.Create("Frame", {
+    Parent = mainFrame,
+    Size = UDim2.new(1, -100, 1, -30),
+    Position = UDim2.new(0, 100, 0, 30),
+    BackgroundColor3 = THEME.Tertiary,
+})
 
 local tabNames = {"Main", "Player", "ESP", "Fly", "Tools", "Troll"}
 local tabFrames = {}
+local activeTabButton = nil
 
-for _, name in ipairs(tabNames) do
-    local btn = Instance.new("TextButton", tabList)
-    btn.Size = UDim2.new(1, 0, 0, 30)
-    btn.Position = UDim2.new(0, 0, 0, 30 * (_ - 1))
-    btn.Text = name
-    btn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-    btn.TextColor3 = Color3.new(1, 1, 1)
-    btn.Font = Enum.Font.Gotham
-    btn.TextSize = 14
-    Instance.new("UICorner", btn)
+for i, name in ipairs(tabNames) do
+    local btn = UI.Create("TextButton", {
+        Parent = tabList,
+        Size = UDim2.new(1, 0, 0, 30),
+        Position = UDim2.new(0, 0, 0, 30 * (i - 1)),
+        Text = name,
+        BackgroundColor3 = i == 1 and THEME.Tertiary or THEME.Main,
+        TextColor3 = THEME.FontColor,
+        Font = THEME.Font,
+        TextSize = 14,
+    })
 
-    local frame = Instance.new("Frame", contentFrame)
-    frame.Size = UDim2.new(1, 0, 1, 0)
-    frame.BackgroundTransparency = 1
-    frame.Visible = name == "Main"
+    local frame = UI.Create("ScrollingFrame", { -- Use ScrollingFrame for content that might overflow
+        Parent = contentFrame,
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Visible = (i == 1),
+        BorderSizePixel = 0,
+        ScrollBarImageColor3 = THEME.Accent,
+    })
     tabFrames[name] = frame
+    if i == 1 then activeTabButton = btn end
 
     btn.MouseButton1Click:Connect(function()
         for _, f in pairs(tabFrames) do f.Visible = false end
+        if activeTabButton then activeTabButton.BackgroundColor3 = THEME.Main end
+        
         frame.Visible = true
+        btn.BackgroundColor3 = THEME.Tertiary
+        activeTabButton = btn
     end)
 end
 
--- Player Tab Features
+--// FEATURE CREATION
+--[[ Player Tab ]]
 local playerTab = tabFrames["Player"]
-
--- Speed & Jump sliders with saved state
-local function createSlider(text, min, max, default, onChange, posY)
-    local label = Instance.new("TextLabel", playerTab)
-    label.Position = UDim2.new(0, 10, 0, posY)
-    label.Size = UDim2.new(0, 150, 0, 20)
-    label.Text = text .. ": " .. tostring(default)
-    label.TextColor3 = Color3.new(1, 1, 1)
-    label.BackgroundTransparency = 1
-    label.Font = Enum.Font.Gotham
-    label.TextSize = 14
-
-    local slider = Instance.new("TextButton", playerTab)
-    slider.Position = UDim2.new(0, 160, 0, posY)
-    slider.Size = UDim2.new(0, 180, 0, 20)
-    slider.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-    slider.Text = ""
-    slider.AutoButtonColor = false
-    local fill = Instance.new("Frame", slider)
-    fill.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
-    fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
-
-    local dot = Instance.new("Frame", slider)
-    dot.AnchorPoint = Vector2.new(0.5, 0.5)
-    dot.Position = UDim2.new(fill.Size.X.Scale, 0, 0.5, 0)
-    dot.Size = UDim2.new(0, 10, 0, 10)
-    dot.BackgroundColor3 = Color3.new(1, 1, 1)
-    dot.ZIndex = 2
-    Instance.new("UICorner", dot)
-
-    local dragging = false
-    local function update(input)
-        local rel = input.Position.X - slider.AbsolutePosition.X
-        local pct = math.clamp(rel / slider.AbsoluteSize.X, 0, 1)
-        local value = math.floor(min + (max - min) * pct)
-        fill.Size = UDim2.new(pct, 0, 1, 0)
-        dot.Position = UDim2.new(pct, 0, 0.5, 0)
-        label.Text = text .. ": " .. tostring(value)
-        onChange(value)
-    end
-
-    slider.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-        end
-    end)
-    slider.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = false
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            update(input)
-        end
-    end)
-end
-
 local walkSpeedValue = 16
 local jumpPowerValue = 50
 
--- Load saved values or use defaults
-local savedWalkSpeed = loadSetting("WalkSpeed") and tonumber(loadSetting("WalkSpeed")) or walkSpeedValue
-local savedJumpPower = loadSetting("JumpPower") and tonumber(loadSetting("JumpPower")) or jumpPowerValue
+-- A better slider that manages its own events efficiently
+local function createSlider(parent, text, min, max, default, onChange)
+    local sliderYPos = #parent:GetChildren() * 30 + 10
+    
+    local label = UI.Create("TextLabel", {
+        Parent = parent,
+        Position = UDim2.new(0, 10, 0, sliderYPos),
+        Size = UDim2.new(0, 150, 0, 20),
+        Text = text .. ": " .. tostring(default),
+        TextColor3 = THEME.FontColor,
+        BackgroundTransparency = 1,
+        Font = THEME.Font,
+        TextSize = 14,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    })
 
-createSlider("WalkSpeed", 16, 100, savedWalkSpeed, function(v)
-    walkSpeedValue = v
-    saveSetting("WalkSpeed", v)
-    if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
-        player.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = v
+    local slider = UI.Create("TextButton", {
+        Parent = parent,
+        Position = UDim2.new(0.05, 0, 0, sliderYPos + 25),
+        Size = UDim2.new(0.9, 0, 0, 10),
+        BackgroundColor3 = THEME.Main,
+        Text = "",
+        AutoButtonColor = false,
+        CornerRadius = 5,
+    })
+    
+    local fill = UI.Create("Frame", {
+        Parent = slider,
+        BackgroundColor3 = THEME.Accent,
+        Size = UDim2.new((default - min) / (max - min), 0, 1, 0),
+        CornerRadius = 5,
+    })
+
+    local function updateValue(inputX)
+        local relX = inputX - slider.AbsolutePosition.X
+        local percentage = math.clamp(relX / slider.AbsoluteSize.X, 0, 1)
+        local value = math.floor(min + (max - min) * percentage + 0.5) -- Add 0.5 for better rounding
+        
+        fill.Size = UDim2.new(percentage, 0, 1, 0)
+        label.Text = text .. ": " .. tostring(value)
+        onChange(value)
     end
-end, 10)
+    
+    updateValue(slider.AbsolutePosition.X + slider.AbsoluteSize.X * fill.Size.X.Scale)
 
-createSlider("JumpPower", 50, 200, savedJumpPower, function(v)
-    jumpPowerValue = v
-    saveSetting("JumpPower", v)
-    if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
-        player.Character:FindFirstChildOfClass("Humanoid").JumpPower = v
+    slider.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            updateValue(input.Position.X) -- Update on first click
+            
+            local moveConn, endConn
+            moveConn = UserInputService.InputChanged:Connect(function(moveInput)
+                if moveInput.UserInputType == Enum.UserInputType.MouseMovement then
+                    updateValue(moveInput.Position.X)
+                end
+            end)
+            endConn = UserInputService.InputEnded:Connect(function(endInput)
+                if endInput.UserInputType == Enum.UserInputType.MouseButton1 then
+                    moveConn:Disconnect()
+                    endConn:Disconnect()
+                end
+            end)
+        end
+    end)
+end
+
+-- A generic toggle button creation function
+local function createToggle(parent, config)
+    local toggleYPos = #parent:GetChildren() * 30 + 10
+    
+    local on = Settings:Load(config.setting, false)
+
+    local btn = UI.Create("TextButton", {
+        Parent = parent,
+        Position = UDim2.new(0.05, 0, 0, toggleYPos),
+        Size = UDim2.new(0.9, 0, 0, 25),
+        Text = config.name .. (on and " [ON]" or " [OFF]"),
+        TextColor3 = THEME.FontColor,
+        BackgroundColor3 = on and THEME.Accent or THEME.Main,
+        Font = THEME.BoldFont,
+        CornerRadius = 6,
+    })
+    
+    -- Apply initial state without running the full function if not needed
+    if config.initialFunc then
+        config.initialFunc(on)
+    else
+        config.func(on)
     end
-end, 40)
-
--- Toggles including new ESP and Fly
-local toggles = {
-    {name = "Infinite Jump", setting = "InfiniteJump", func = function(state)
-        _G.InfJump = state
-    end},
-    {name = "Invisibility", setting = "Invisibility", func = function(state)
-        if player.Character then
-            for _, v in pairs(player.Character:GetDescendants()) do
-                if v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" then
-                    v.Transparency = state and 1 or 0
-                end
-            end
-        end
-    end},
-    {name = "ESP", setting = "ESP", func = function(state)
-        if state then
-            -- Add ESP boxes or highlights to players
-            for _, p in pairs(Players:GetPlayers()) do
-                if p ~= player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-                    local highlight = p.Character:FindFirstChild("CashewESP")
-                    if not highlight then
-                        highlight = Instance.new("BoxHandleAdornment")
-                        highlight.Name = "CashewESP"
-                        highlight.Adornee = p.Character.HumanoidRootPart
-                        highlight.AlwaysOnTop = true
-                        highlight.ZIndex = 10
-                        highlight.Size = Vector3.new(2, 5, 1)
-                        highlight.Color3 = Color3.fromRGB(0, 170, 255)
-                        highlight.Transparency = 0.5
-                        highlight.Parent = p.Character.HumanoidRootPart
-                    end
-                end
-            end
-        else
-            -- Remove ESP boxes
-            for _, p in pairs(Players:GetPlayers()) do
-                if p.Character then
-                    local highlight = p.Character:FindFirstChild("CashewESP")
-                    if highlight then
-                        highlight:Destroy()
-                    end
-                end
-            end
-        end
-    end},
-    {name = "Fly", setting = "Fly", func = function(state)
-        if state then
-            if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return end
-            local hrp = player.Character.HumanoidRootPart
-            local bodyVelocity = Instance.new("BodyVelocity")
-            bodyVelocity.Name = "CashewFlyVelocity"
-            bodyVelocity.MaxForce = Vector3.new(1e5, 1e5, 1e5)
-            bodyVelocity.Velocity = Vector3.new(0,0,0)
-            bodyVelocity.Parent = hrp
-
-            local bodyGyro = Instance.new("BodyGyro")
-            bodyGyro.Name = "CashewFlyGyro"
-            bodyGyro.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
-            bodyGyro.CFrame = hrp.CFrame
-            bodyGyro.Parent = hrp
-
-            local speed = 50
-            local flyUp, flyDown, flyForward, flyBackward, flyLeft, flyRight = false, false, false, false, false, false
-
-            local function updateVelocity()
-                local vel = Vector3.new(0, 0, 0)
-                if flyForward then vel = vel + workspace.CurrentCamera.CFrame.LookVector end
-                if flyBackward then vel = vel - workspace.CurrentCamera.CFrame.LookVector end
-                if flyLeft then vel = vel - workspace.CurrentCamera.CFrame.RightVector end
-                if flyRight then vel = vel + workspace.CurrentCamera.CFrame.RightVector end
-                if flyUp then vel = vel + Vector3.new(0,1,0) end
-                if flyDown then vel = vel - Vector3.new(0,1,0) end
-                bodyVelocity.Velocity = vel.Unit * speed
-                bodyGyro.CFrame = workspace.CurrentCamera.CFrame
-            end
-
-            local function onInputBegan(input)
-                if input.UserInputType == Enum.UserInputType.Keyboard then
-                    if input.KeyCode == Enum.KeyCode.Space then flyUp = true end
-                    if input.KeyCode == Enum.KeyCode.LeftControl then flyDown = true end
-                    if input.KeyCode == Enum.KeyCode.W then flyForward = true end
-                    if input.KeyCode == Enum.KeyCode.S then flyBackward = true end
-                    if input.KeyCode == Enum.KeyCode.A then flyLeft = true end
-                    if input.KeyCode == Enum.KeyCode.D then flyRight = true end
-                    updateVelocity()
-                end
-            end
-
-            local function onInputEnded(input)
-                if input.UserInputType == Enum.UserInputType.Keyboard then
-                    if input.KeyCode == Enum.KeyCode.Space then flyUp = false end
-                    if input.KeyCode == Enum.KeyCode.LeftControl then flyDown = false end
-                    if input.KeyCode == Enum.KeyCode.W then flyForward = false end
-                    if input.KeyCode == Enum.KeyCode.S then flyBackward = false end
-                    if input.KeyCode == Enum.KeyCode.A then flyLeft = false end
-                    if input.KeyCode == Enum.KeyCode.D then flyRight = false end
-                    updateVelocity()
-                end
-            end
-
-            local inputBeganConn
-            local inputEndedConn
-
-            inputBeganConn = UserInputService.InputBegan:Connect(onInputBegan)
-            inputEndedConn = UserInputService.InputEnded:Connect(onInputEnded)
-
-            -- Save connections to _G so we can disconnect when toggled off
-            _G.FlyConnections = {inputBeganConn, inputEndedConn}
-            _G.FlyObjects = {bodyVelocity, bodyGyro}
-
-        else
-            -- Disable fly
-            if _G.FlyConnections then
-                for _, conn in pairs(_G.FlyConnections) do
-                    conn:Disconnect()
-                end
-                _G.FlyConnections = nil
-            end
-            if _G.FlyObjects then
-                for _, obj in pairs(_G.FlyObjects) do
-                    if obj and obj.Parent then obj:Destroy() end
-                end
-                _G.FlyObjects = nil
-            end
-        end
-    end},
-}
-
-local function createToggle(t, posY)
-    local btn = Instance.new("TextButton", playerTab)
-    btn.Position = UDim2.new(0, 10, 0, posY)
-    btn.Size = UDim2.new(0, 200, 0, 25)
-    btn.TextColor3 = Color3.new(1, 1, 1)
-    btn.BackgroundColor3 = Color3.fromRGB(90, 90, 90)
-    Instance.new("UICorner", btn)
-
-    local savedState = loadSetting(t.setting) or false
-    local on = savedState
-    btn.Text = t.name .. (on and " ✅" or " ❌")
-    t.func(on)
 
     btn.MouseButton1Click:Connect(function()
         on = not on
-        btn.Text = t.name .. (on and " ✅" or " ❌")
-        t.func(on)
-        saveSetting(t.setting, on)
+        btn.Text = config.name .. (on and " [ON]" or " [OFF]")
+        btn.BackgroundColor3 = on and THEME.Accent or THEME.Main
+        config.func(on)
+        Settings:Save(config.setting, on)
     end)
-
     return btn
 end
 
-for i, t in ipairs(toggles) do
-    createToggle(t, 70 + (i - 1) * 30)
+-- Load saved values or use defaults
+local savedWalkSpeed = Settings:Load("WalkSpeed", 16)
+local savedJumpPower = Settings:Load("JumpPower", 50)
+
+createSlider(playerTab, "WalkSpeed", 16, 200, savedWalkSpeed, function(v)
+    walkSpeedValue = v
+    Settings:Save("WalkSpeed", v)
+    if player.Character and player.Character:FindFirstChild("Humanoid") then
+        player.Character.Humanoid.WalkSpeed = v
+    end
+end)
+
+createSlider(playerTab, "JumpPower", 50, 250, savedJumpPower, function(v)
+    jumpPowerValue = v
+    Settings:Save("JumpPower", v)
+    if player.Character and player.Character:FindFirstChild("Humanoid") then
+        player.Character.Humanoid.JumpPower = v
+    end
+end)
+
+createToggle(playerTab, {
+    name = "Infinite Jump", 
+    setting = "InfiniteJump", 
+    func = function(state)
+        State.InfiniteJump = state
+    end
+})
+
+createToggle(playerTab, {
+    name = "Invisibility", 
+    setting = "Invisibility", 
+    func = function(state)
+        if not player.Character then return end
+        for _, part in ipairs(player.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.LocalTransparencyModifier = state and 1 or 0
+            end
+        end
+    end,
+    initialFunc = function(state) -- Run on spawn
+        player.CharacterAdded:Connect(function(char)
+            if Settings:Load("Invisibility", false) then
+                for _, part in ipairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.LocalTransparencyModifier = 1
+                    end
+                end
+            end
+        end)
+    end
+})
+
+
+--[[ ESP Tab ]]
+local espTab = tabFrames["ESP"]
+local espHighlights = {}
+
+local function updateEspForPlayer(p, state)
+    if p == player or not p.Character then return end
+    
+    local existingHighlight = espHighlights[p]
+    
+    if state and not existingHighlight then
+        local highlight = UI.Create("Highlight", {
+            Parent = p.Character,
+            Name = "CashewESP",
+            Adornee = p.Character,
+            FillColor = THEME.Accent,
+            OutlineColor = THEME.FontColor,
+            FillTransparency = 0.7,
+            OutlineTransparency = 0.3,
+            DepthMode = Enum.HighlightDepthMode.AlwaysOnTop,
+        })
+        espHighlights[p] = highlight
+    elseif not state and existingHighlight then
+        existingHighlight:Destroy()
+        espHighlights[p] = nil
+    end
 end
 
--- Tools Tab
+createToggle(espTab, {
+    name = "Player ESP", 
+    setting = "ESP", 
+    func = function(state)
+        State.ESP = state
+        for _, p in ipairs(Players:GetPlayers()) do
+            updateEspForPlayer(p, state)
+        end
+    end
+})
+
+Players.PlayerAdded:Connect(function(p)
+    p.CharacterAdded:Connect(function()
+        task.wait(0.5) -- Wait for character to fully load
+        updateEspForPlayer(p, State.ESP)
+    end)
+end)
+
+Players.PlayerRemoving:Connect(function(p)
+    if espHighlights[p] then
+        espHighlights[p] = nil
+    end
+end)
+
+
+--[[ Fly Tab ]]
+local flyTab = tabFrames["Fly"]
+local flySpeed = 50
+
+local function updateFly(state)
+    State.Fly = state
+    
+    -- Clean up old connections and objects
+    for _, conn in ipairs(State.Connections) do conn:Disconnect() end
+    table.clear(State.Connections)
+    for _, obj in ipairs(State.FlyObjects) do if obj and obj.Parent then obj:Destroy() end end
+    table.clear(State.FlyObjects)
+
+    if not state then return end
+
+    local char = player.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+
+    local hrp = char.HumanoidRootPart
+    local humanoid = char:FindFirstChild("Humanoid")
+    if humanoid then humanoid:SetStateEnabled(Enum.HumanoidStateType.Running, false) end
+    
+    local bodyVelocity = UI.Create("BodyVelocity", {
+        Name = "CashewFlyVelocity",
+        Parent = hrp,
+        MaxForce = Vector3.new(math.huge, math.huge, math.huge),
+        Velocity = Vector3.new(0, 0, 0),
+    })
+    table.insert(State.FlyObjects, bodyVelocity)
+    
+    local bodyGyro = UI.Create("BodyGyro", {
+        Name = "CashewFlyGyro",
+        Parent = hrp,
+        MaxTorque = Vector3.new(math.huge, math.huge, math.huge),
+        CFrame = hrp.CFrame,
+    })
+    table.insert(State.FlyObjects, bodyGyro)
+
+    local moveKeys = {
+        [Enum.KeyCode.W] = Vector3.new(0, 0, -1),
+        [Enum.KeyCode.S] = Vector3.new(0, 0, 1),
+        [Enum.KeyCode.A] = Vector3.new(-1, 0, 0),
+        [Enum.KeyCode.D] = Vector3.new(1, 0, 0),
+        [Enum.KeyCode.Space] = Vector3.new(0, 1, 0),
+        [Enum.KeyCode.LeftControl] = Vector3.new(0, -1, 0),
+    }
+    local moveDirection = Vector3.new()
+
+    local conn = RunService.RenderStepped:Connect(function()
+        local cameraCF = workspace.CurrentCamera.CFrame
+        local finalVelocity = Vector3.new()
+        
+        moveDirection = Vector3.new()
+        for key, dir in pairs(moveKeys) do
+            if UserInputService:IsKeyDown(key) then
+                moveDirection = moveDirection + dir
+            end
+        end
+
+        if moveDirection.Magnitude > 0 then
+            finalVelocity = cameraCF:VectorToWorldSpace(moveDirection.Unit) * flySpeed
+        end
+
+        bodyVelocity.Velocity = finalVelocity
+        bodyGyro.CFrame = cameraCF
+    end)
+    table.insert(State.Connections, conn)
+
+    -- Re-enable humanoid state when fly is turned off
+    local charRemovingConn = char.AncestryChanged:Connect(function(_, parent)
+        if not parent then
+            updateFly(false)
+        end
+    end)
+    table.insert(State.Connections, charRemovingConn)
+
+    local humanoidDiedConn = humanoid.Died:Connect(function()
+        updateFly(false)
+    end)
+    table.insert(State.Connections, humanoidDiedConn)
+end
+
+player.CharacterAdded:Connect(function(char)
+    local humanoid = char:WaitForChild("Humanoid")
+    -- When a new character spawns, turn off the fly state if it was on
+    if State.Fly then
+        updateFly(false)
+    end
+    -- Also ensure humanoid state is normal
+    humanoid:SetStateEnabled(Enum.HumanoidStateType.Running, true)
+end)
+
+createToggle(flyTab, { name = "Fly", setting = "Fly", func = updateFly })
+
+--[[ Tools Tab ]]
 local toolsTab = tabFrames["Tools"]
+local inputBox = UI.Create("TextBox", {
+    Parent = toolsTab,
+    Position = UDim2.new(0, 10, 0, 10),
+    Size = UDim2.new(1, -120, 0, 25),
+    PlaceholderText = "Enter Asset ID...",
+    BackgroundColor3 = THEME.Main,
+    TextColor3 = THEME.FontColor,
+    Font = THEME.Font,
+    ClearTextOnFocus = false,
+})
 
-local inputBox = Instance.new("TextBox", toolsTab)
-inputBox.Position = UDim2.new(0, 10, 0, 10)
-inputBox.Size = UDim2.new(0, 150, 0, 25)
-inputBox.PlaceholderText = "Tool ID"
-inputBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-inputBox.TextColor3 = Color3.new(0, 0, 0)
-
-local toolBtn = Instance.new("TextButton", toolsTab)
-toolBtn.Position = UDim2.new(0, 170, 0, 10)
-toolBtn.Size = UDim2.new(0, 100, 0, 25)
-toolBtn.Text = "Spawn Tool"
-toolBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-toolBtn.TextColor3 = Color3.new(1, 1, 1)
+local toolBtn = UI.Create("TextButton", {
+    Parent = toolsTab,
+    Position = UDim2.new(1, -100, 0, 10),
+    Size = UDim2.new(0, 90, 0, 25),
+    Text = "Get Tool",
+    BackgroundColor3 = THEME.Accent,
+    TextColor3 = THEME.FontColor,
+    Font = THEME.BoldFont,
+    CornerRadius = 6,
+})
 
 toolBtn.MouseButton1Click:Connect(function()
     local id = tonumber(inputBox.Text)
-    if id then
-        local success, model = pcall(function()
-            return InsertService:LoadAsset(id)
-        end)
-        if success and model then
-            local function findTool(obj)
-                if obj:IsA("Tool") then return obj end
-                for _, child in ipairs(obj:GetChildren()) do
-                    local t = findTool(child)
-                    if t then return t end
-                end
-            end
-            local tool = findTool(model)
-            if tool then
-                tool.Parent = player.Backpack
-            end
-        else
-            warn("Failed to load tool")
-        end
+    if not id then warn("Invalid tool ID") return end
+
+    local success, asset = pcall(function()
+        return InsertService:LoadAsset(id)
+    end)
+
+    if not success then warn("Failed to load asset:", asset) return end
+    
+    -- FindFirstChildOfClass is more direct than a recursive search
+    local tool = asset:FindFirstChildOfClass("Tool")
+    if tool then
+        tool.Parent = player.Backpack
     else
-        warn("Invalid tool ID")
+        warn("No tool found in the asset.")
+        asset:Destroy() -- Clean up the model if no tool is found
     end
 end)
 
--- Troll Tab (example: kill player)
+--[[ Troll Tab ]]
 local trollTab = tabFrames["Troll"]
-
-local killBtn = Instance.new("TextButton", trollTab)
-killBtn.Position = UDim2.new(0, 10, 0, 10)
-killBtn.Size = UDim2.new(0, 150, 0, 30)
-killBtn.Text = "Kill Me"
-killBtn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
-killBtn.TextColor3 = Color3.new(1, 1, 1)
-Instance.new("UICorner", killBtn)
+local killBtn = UI.Create("TextButton", {
+    Parent = trollTab,
+    Position = UDim2.new(0, 10, 0, 10),
+    Size = UDim2.new(0, 150, 0, 30),
+    Text = "Reset Character",
+    BackgroundColor3 = Color3.fromRGB(170, 0, 0),
+    TextColor3 = THEME.FontColor,
+    Font = THEME.BoldFont,
+    CornerRadius = 6,
+})
 
 killBtn.MouseButton1Click:Connect(function()
     if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
-        player.Character:FindFirstChildOfClass("Humanoid").Health = 0
+        player.Character.Humanoid.Health = 0
     end
 end)
 
--- Main tab sample label
+--[[ Main tab ]]
 local mainTab = tabFrames["Main"]
-local mainLabel = Instance.new("TextLabel", mainTab)
-mainLabel.Size = UDim2.new(1, 0, 1, 0)
-mainLabel.BackgroundTransparency = 1
-mainLabel.TextColor3 = Color3.new(1, 1, 1)
-mainLabel.Font = Enum.Font.GothamBold
-mainLabel.TextSize = 20
-mainLabel.Text = "Welcome to Cashew's Script!"
-mainLabel.TextWrapped = true
+local mainLabel = UI.Create("TextLabel", {
+    Parent = mainTab,
+    Size = UDim2.new(1, -20, 1, -20),
+    Position = UDim2.new(0, 10, 0, 10),
+    BackgroundTransparency = 1,
+    TextColor3 = THEME.FontColor,
+    Font = THEME.BoldFont,
+    TextSize = 20,
+    Text = "Welcome to the improved Cashew Script!",
+    TextWrapped = true,
+    TextYAlignment = Enum.YAlignment.Top,
+})
 
--- Dragging logic for mainFrame
-local dragging, dragInput, dragStart, startPos
-
-local function update(input)
-    local delta = input.Position - dragStart
-    mainFrame.Position = UDim2.new(
-        startPos.X.Scale,
-        startPos.X.Offset + delta.X,
-        startPos.Y.Scale,
-        startPos.Y.Offset + delta.Y
-    )
-end
-
+--// CORE LOGIC
+-- GUI Dragging Logic (More efficient)
 dragBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = true
-        dragStart = input.Position
-        startPos = mainFrame.Position
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        local dragStart = input.Position
+        local startPos = mainFrame.Position
+        
+        local moveConn, endConn
+        moveConn = UserInputService.InputChanged:Connect(function(moveInput)
+            if moveInput.UserInputType == input.UserInputType then
+                local delta = moveInput.Position - dragStart
+                mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            end
+        end)
+        endConn = UserInputService.InputEnded:Connect(function(endInput)
+            if endInput.UserInputType == input.UserInputType then
+                moveConn:Disconnect()
+                endConn:Disconnect()
             end
         end)
     end
 end)
 
-dragBar.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement then
-        dragInput = input
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if input == dragInput and dragging then
-        update(input)
-    end
-end)
-
--- Toggle GUI and blur effect
-local guiVisible = false
+-- GUI Toggle Logic
 toggleBtn.MouseButton1Click:Connect(function()
-    guiVisible = not guiVisible
-    mainFrame.Visible = guiVisible
-    blur.Enabled = guiVisible
-    UserInputService.MouseIconEnabled = guiVisible -- optional: show mouse when GUI active
-end)
-
--- Prevent camera movement when hovering GUI
-local camera = workspace.CurrentCamera
-local cameraControlEnabled = true
-
-local function setCameraControl(enabled)
-    if enabled ~= cameraControlEnabled then
-        cameraControlEnabled = enabled
-        if cameraControlEnabled then
-            UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-        else
-            UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
-        end
-    end
-end
-
-local function checkCursorOverGui()
-    local mousePos = UserInputService:GetMouseLocation()
-    local guiPos = mainFrame.AbsolutePosition
-    local guiSize = mainFrame.AbsoluteSize
-    local overGui = mousePos.X >= guiPos.X and mousePos.X <= (guiPos.X + guiSize.X) and
-                    mousePos.Y >= guiPos.Y and mousePos.Y <= (guiPos.Y + guiSize.Y)
-    return overGui
-end
-
-RunService.RenderStepped:Connect(function()
-    if mainFrame.Visible then
-        setCameraControl(not checkCursorOverGui())
-    else
-        setCameraControl(true)
-    end
+    local isVisible = not mainFrame.Visible
+    mainFrame.Visible = isVisible
+    blur.Enabled = isVisible
 end)
 
 -- Character updates for WalkSpeed & JumpPower on spawn
 local function onCharacterAdded(char)
     local humanoid = char:WaitForChild("Humanoid")
-    humanoid.WalkSpeed = walkSpeedValue
-    humanoid.JumpPower = jumpPowerValue
+    humanoid.WalkSpeed = Settings:Load("WalkSpeed", 16)
+    humanoid.JumpPower = Settings:Load("JumpPower", 50)
+
+    -- Re-apply invisibility if enabled
+    if Settings:Load("Invisibility", false) then
+        task.wait() -- ensure all parts are loaded
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.LocalTransparencyModifier = 1
+            end
+        end
+    end
 end
 
-player.CharacterAdded:Connect(onCharacterAdded)
 if player.Character then
     onCharacterAdded(player.Character)
 end
+player.CharacterAdded:Connect(onCharacterAdded)
 
 -- Infinite jump logic
-_G.InfJump = loadSetting("InfiniteJump") or false
 UserInputService.JumpRequest:Connect(function()
-    if _G.InfJump and player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+    if State.InfiniteJump and player.Character then
         player.Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping)
     end
 end)
+
+print("Cashew Script Initialized.")
